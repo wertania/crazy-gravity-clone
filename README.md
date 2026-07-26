@@ -4,10 +4,20 @@ A gravity cave flyer built with Three.js and TypeScript — a modern take on the
 1996 Windows shareware game *Crazy Gravity* by Axel Meierhöfer (XLM Software),
 which itself descends from *Thrust* (1986) and Atari's *Gravitar*.
 
+> **The game's interface is German.** Menus, HUD, level names and hints are all
+> in German; this README stays in English as developer documentation.
+
 Rotate the ship, burn the engine along its nose, fight a constant downward pull,
 pick up freight and put it down softly on the base pad. The rock is always fatal.
 
 ![Cave 01, First Light](shots/level01.png)
+
+<table>
+<tr>
+<td><img src="shots/boot.png" alt="Loading screen: ship silhouette, progress bar, status line" /></td>
+<td><img src="shots/title.png" alt="Title menu: two-line rows with a label, an explanation and a value chip" /></td>
+</tr>
+</table>
 
 <table>
 <tr>
@@ -19,13 +29,17 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 <td><img src="shots/level20-finale.png" alt="Cave 20, Eventide" /></td>
 </tr>
 <tr>
-<td colspan="2"><img src="shots/phone-landscape.png" alt="On a phone in landscape: analog steering slider bottom left, throttle slider bottom right, HUD stacked at the top" /></td>
+<td><img src="shots/phone-landscape.png" alt="On a phone in landscape: steering paddle bottom left, throttle paddle bottom right held open, HUD stacked at the top" /></td>
+<td><img src="shots/difficulty.png" alt="Difficulty screen listing speed and thrust per tier" /></td>
 </tr>
 </table>
 
-> Screenshots are captured from the built bundle in a real Chromium, but under
-> SwiftShader software rasterisation — the quality system therefore steps bloom
-> off before the shot is taken. On hardware the emissive surfaces glow.
+> Screenshots are captured from the built bundle in a real Chromium under
+> SwiftShader software rasterisation, with the quality tier **pinned to the top
+> one** so bloom is actually on. Pinning matters: the adaptive quality system
+> disables bloom on a software renderer, so screenshots taken without it show a
+> different game from the one a GPU renders — which is how an over-bright build
+> once shipped past several rounds of "looks fine to me".
 
 > **On the name and the content.** Game mechanics are not copyrightable, but
 > names, art, sound and level layouts are. Nothing here is taken from the
@@ -51,23 +65,27 @@ npm run preview        # serve the built bundle
 
 | | |
 |---|---|
-| <kbd>A</kbd> / <kbd>←</kbd> | rotate left |
-| <kbd>D</kbd> / <kbd>→</kbd> | rotate right |
-| <kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> | thrust along the nose |
-| <kbd>S</kbd> / <kbd>↓</kbd> | auto-level assist |
-| <kbd>R</kbd> | restart the cave |
-| <kbd>Esc</kbd> / <kbd>P</kbd> | pause |
-| <kbd>M</kbd> | mute |
-| <kbd>F3</kbd> | debug overlay |
+| <kbd>A</kbd> / <kbd>←</kbd> | links drehen — rotate left |
+| <kbd>D</kbd> / <kbd>→</kbd> | rechts drehen — rotate right |
+| <kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> | Schub — thrust along the nose |
+| <kbd>S</kbd> / <kbd>↓</kbd> | Lage-Assistent — auto-level assist |
+| <kbd>R</kbd> | Höhle neu starten — restart the cave |
+| <kbd>Esc</kbd> / <kbd>P</kbd> | Pause |
+| <kbd>M</kbd> | Ton an/aus — mute |
+| <kbd>F3</kbd> | Technik-Anzeige — debug overlay |
 
 Gamepads work too — left stick or d-pad to turn, A or the right trigger to
 thrust. The trigger is analog.
 
-**On a touchscreen** two on-screen sliders appear automatically: drag the left
-one to steer, the right one up for power. Both are analog and both spring back
-when you let go, and they work simultaneously as two thumbs. Force them on or
-off under Settings. Landscape gives you noticeably more cave to see; portrait is
-playable and the game says so once, rather than blocking the screen.
+**On a touchscreen** two paddles appear automatically. Each owns half of the
+lower screen as a gesture zone, with a slider drawn inside it as an indicator —
+press anywhere in the zone and drag: sideways on the left to steer, upwards on
+the right for power. The mapping is *relative*, so there is no invisible origin
+to find first and a thumb landing beside the drawn track works exactly the same.
+Both are analog, both spring back when you let go, and they work simultaneously
+as two thumbs. Force them on or off under Settings. Landscape gives you
+noticeably more cave to see; portrait is playable and the game says so once,
+rather than blocking the screen.
 
 Thrust only ever fires along the nose. To slow down you have to turn around
 first, and that turn is the entire game.
@@ -81,9 +99,20 @@ Two independent dials, both under Settings and Difficulty:
   keep their exact relationships and the ship handles identically. You simply
   get more real milliseconds to react in, which is the most effective and least
   balance-breaking difficulty dial a reaction game has.
-- **Difficulty** (default *Rookie*) changes hulls, fuel, gravity, hazard tempo
-  and landing tolerance — and your score multiplier. It never changes the
-  level list.
+- **Difficulty** (default *Rookie*) changes the hull itself. The two biggest
+  dials are **top speed** and **thrust**: Rookie flies at 58% speed and 70%
+  thrust, Legend at 118% and 112%. A slower ship simply cannot build up a
+  velocity it has no room to shed, so most crashes stop happening rather than
+  being survived. Hulls, fuel, gravity, hazard tempo, landing tolerance and the
+  score multiplier move with it. It never changes the level list.
+
+  | tier | speed | thrust | hulls | score |
+  |---|---|---|---|---|
+  | Rookie | 58% | 70% | 9 | 0.60× |
+  | Pilot | 76% | 84% | 6 | 1.00× |
+  | Ace | 100% | 100% | 4 | 1.35× |
+  | Veteran | 108% | 105% | 3 | 1.80× |
+  | Legend | 118% | 112% | 1 | 2.50× |
 
 ---
 
@@ -122,13 +151,18 @@ Deliberately modern:
   exactly one mechanic in a safe room before it is ever combined.
 - **Medals and a par time** instead of a hard timer — except on Veteran and
   Legend, where the clock does bite.
+- **A loading screen that exists before the JavaScript does.** Markup, styles
+  and progress script are inline in `index.html`, so the very first paint shows
+  a title card rather than a black rectangle. Its phases are real milestones —
+  bundle running, shaders compiling, first frame composited — not a fake timer,
+  and it explains a slow connection and a failed download instead of hanging.
 - **Autosave**, so passwords are a convenience rather than homework.
 - **Analog throttle.** The original was strictly on/off and a key still gives
   full power, but the touch slider and gamepad triggers are continuous, and
   fuel burn follows the throttle. Feathering the engine to hold a hover is what
   makes a touchscreen viable at all — hover sits at about a third of the slider
   travel, leaving usable resolution on both sides of it.
-- **Adjustable pace**, defaulting below 1.
+- **Adjustable pace**, defaulting below 1, and per-tier speed and thrust.
 
 ---
 
@@ -154,7 +188,7 @@ src/
     actors.ts     ship and props
     particles.ts  one pooled additive point cloud
     backdrop.ts   parallax layers
-  ui/           DOM overlay
+  ui/           DOM overlay (German)
     hud.ts, screens.ts, touch.ts
   audio/        procedural WebAudio, no sample files
 tests/          vitest unit + integration, playwright end-to-end
@@ -233,7 +267,8 @@ npm run e2e            # playwright: real browser, real WebGL
 **Unit** (`tests/physics.test.ts`) covers free fall against the analytic
 solution, hover equilibrium, the speed cap, frame-rate independence, fuel burn,
 throttle linearity, a steady hover on a constant analog throttle, the throttle
-dead zone, the auto-level controller, contact normals, anti-tunneling, landing
+dead zone, per-tier speed caps and acceleration, fuel buying the same delta-v on
+every tier, wells staying climbable on every tier, the auto-level controller, contact normals, anti-tunneling, landing
 versus crashing at the tolerance boundary, difficulty-scaled tolerance, respawn
 semantics, and the flow meter's earn and decay rules.
 
@@ -254,7 +289,9 @@ pilot, not evidence those caves are unwinnable — it follows a static route and
 loses time in long fuel-critical tunnels and dies at sharp bends in narrow
 tubes. Their geometry is covered instead by the reachability validator.
 
-**End to end** (`tests/e2e/smoke.spec.ts`) drives a real Chromium: WebGL boots,
+**End to end** (`tests/e2e/smoke.spec.ts`) drives a real Chromium: the loading
+screen carries the wait with the bundle held open and hands over cleanly once it
+lands, a failed download is reported rather than hung on, WebGL boots,
 the menus navigate, keyboard flight actually moves the ship and burns fuel,
 gravity pulls it back down, pause genuinely freezes the simulation, restart
 resets it, passwords unlock caves, progress survives a reload, and — on the
@@ -293,6 +330,13 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The particle shader patch declared an attribute named `size`, which collides
   with `PointsMaterial`'s own uniform and fails to compile. Only a real browser
   finds that.
+- The ship carried a point light at intensity 60 over an 18-unit range on lit
+  levels, which put a floodlit disc on the cave floor; with bloom on top the
+  ship disappeared inside a white ball. Every screenshot until then had been
+  taken with bloom auto-disabled by the quality system, so nobody had looked at
+  the thing being complained about. There is now a browser test that pins the
+  top tier and measures the fraction of the frame blown out to white — ~0.03%
+  after the fix against ~0.28% before, so it discriminates.
 - The game loop capped catch-up at 8 sub-steps, which silently ran the
   simulation in slow motion on a slow renderer instead of just dropping frames.
 - Distance fog was configured in world units without accounting for the camera
@@ -303,6 +347,40 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The results card scaled the total by the difficulty multiplier but printed
   unscaled rows, and omitted freight and key points entirely — an itemised
   table whose rows did not add up to its own total.
+
+A fourth round, from the loading screen and the menu rewrite:
+
+- The menu's selection marker was a CSS `::before` glyph, and Chromium folds
+  pseudo-element content into the accessible name — so the selected row
+  announced itself as "▸ Zurück". Noise for a screen reader, and it silently
+  broke name-based lookups. The marker is now drawn with borders, which never
+  enter the accessibility tree.
+- The title panel overflowed its own `max-height` on a 800-pixel-tall window,
+  cutting the last menu row in half.
+
+A third round, after making the hull speed difficulty-dependent — two of these
+were real balance bugs that only a slow tier could expose:
+
+- **Gravity wells were never difficulty-scaled.** The finale's well pulls at 22
+  while Rookie's thrust is 18.2, so the ship simply could not climb out of it.
+  Wells are an environmental force the engine has to fight, so they now scale
+  with thrust and the ratio stays constant across tiers.
+- **Fuel was charged per second, not per unit of speed change.** A weaker engine
+  needs ~1.4× as long to achieve the same manoeuvre, so the gentlest difficulty
+  was quietly the most fuel-starved one. Burn now scales alongside thrust, which
+  makes fuel buy a fixed amount of delta-v on every tier.
+- The first touch controls made the drawn slider the hit area. A thumb landing
+  beside a 52-pixel-wide track and swiping up did nothing at all — which is
+  exactly what it felt like. Both paddles are now large gesture zones with
+  relative mapping.
+- The knobs were positioned with CSS transform percentages, and **a translate
+  percentage resolves against the element being moved, not its container**. So
+  full throttle shifted the knob by one knob-height instead of one
+  track-length — roughly a third of the way — and at rest it was translated
+  half its own height below the track, where `overflow: hidden` cut it in half.
+  Knob offsets are computed in pixels from measured geometry now, and two
+  browser tests assert the knob stays fully visible and covers at least 95% of
+  the room it has.
 
 A second round, after the touch controls went in:
 

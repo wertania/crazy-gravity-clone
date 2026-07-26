@@ -4,6 +4,7 @@ import { buildLevel, type LevelSpec } from '../src/sim/level';
 import { createWorld, stepWorld, type World } from '../src/sim/world';
 import { NO_INPUT, THROTTLE_DEADZONE, Tile, type InputFrame } from '../src/sim/types';
 import { circleVsGrid, subStepsFor, wallProximity } from '../src/sim/collision';
+import { LEVELS } from '../src/sim/levels';
 
 /** A wide, empty, flat-floored box with a base pad - a physics bench, not a level. */
 const BENCH: LevelSpec = {
@@ -138,6 +139,62 @@ describe('integrator', () => {
     w.ship.angle = 1.2;
     run(w, 2.0, { turn: 0, throttle: 0, levelOut: true });
     expect(Math.abs(w.ship.angle)).toBeLessThan(0.12);
+  });
+});
+
+describe('difficulty speed scaling', () => {
+  it('gives Rookie a markedly slower and gentler hull than Ace', () => {
+    const rookie = bench('rookie');
+    const ace = bench('ace');
+    expect(rookie.maxSpeed).toBeLessThan(ace.maxSpeed * 0.7);
+    expect(rookie.thrust).toBeLessThan(ace.thrust * 0.8);
+  });
+
+  it('caps each tier at its own speed, not the global one', () => {
+    for (const tier of ['rookie', 'ace', 'legend'] as const) {
+      const w = bench(tier);
+      for (let i = 0; i < 1500 && w.status === 'playing'; i++) {
+        stepWorld(w, { turn: 0, throttle: 0, levelOut: false }, FIXED_DT);
+        expect(Math.hypot(w.ship.vel.x, w.ship.vel.y)).toBeLessThanOrEqual(w.maxSpeed + 1e-6);
+      }
+    }
+  });
+
+  it('accelerates Rookie visibly more slowly', () => {
+    const climb = (tier: 'rookie' | 'ace') => {
+      const w = bench(tier);
+      run(w, 0.4, { turn: 0, throttle: 1, levelOut: false });
+      return w.ship.vel.y;
+    };
+    expect(climb('rookie')).toBeLessThan(climb('ace') * 0.75);
+  });
+
+  it('sells the same speed change for the same fuel on every tier', () => {
+    // Fuel is charged per second, so without scaling the burn alongside thrust
+    // the gentlest tier quietly pays ~1.4x for an identical manoeuvre.
+    const costPerDeltaV = (tier: 'rookie' | 'ace') => {
+      const w = bench(tier);
+      // Cancel gravity so the measurement is pure engine work.
+      w.gravity = 0;
+      run(w, 0.4, { turn: 0, throttle: 1, levelOut: false });
+      return (w.fuelMax - w.ship.fuel) / w.ship.vel.y;
+    };
+    const rookie = costPerDeltaV('rookie');
+    const ace = costPerDeltaV('ace');
+    expect(rookie / ace).toBeGreaterThan(0.9);
+    expect(rookie / ace).toBeLessThan(1.1);
+  });
+
+  it('scales gravity wells with thrust so every tier can climb out', () => {
+    // Unscaled, the finale's well (22) exceeded Rookie's thrust (18.2) and the
+    // ship was trapped in it no matter what the player did.
+    for (const tier of ['rookie', 'pilot', 'ace', 'veteran', 'legend'] as const) {
+      const spec = LEVELS[19];
+      const w = createWorld(buildLevel(spec), difficultyById(tier));
+      for (const well of w.wells) {
+        expect(well.strength, `${tier} well vs thrust`).toBeLessThan(w.thrust * 0.9);
+      }
+    }
   });
 });
 

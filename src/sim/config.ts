@@ -100,6 +100,15 @@ export interface Difficulty {
   fuelScale: number;
   /** Multiplies safeLandSpeed / safeLandAngle. */
   landToleranceScale: number;
+  /**
+   * Multiplies the hull's speed cap. This is the strongest "make it easier"
+   * lever there is: a slower ship simply cannot build up a velocity it has no
+   * room to shed, so most crashes stop happening rather than being survived.
+   */
+  speedScale: number;
+  /** Multiplies engine power. Lower means gentler acceleration, not a weaker ship -
+   *  gravity is scaled alongside it so the thrust-to-weight ratio stays flyable. */
+  thrustScale: number;
   /** Multiplies hazard fire rates and rod speeds. */
   hazardScale: number;
   /** Multiplies the level par time used for the timer. */
@@ -117,38 +126,44 @@ export interface Difficulty {
 export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'rookie',
-    name: 'Rookie',
-    blurb: 'Light gravity, deep tanks, patient hazards. Learn the caves.',
+    name: 'Neuling',
+    blurb: 'Langsam, schwer, nachsichtig. Volle Tanks, träge Gefahren. Zum Lernen.',
     lives: 9,
     gravityScale: 0.78,
-    fuelScale: 1.45,
+    fuelScale: 2.0,
     landToleranceScale: 1.5,
+    speedScale: 0.58,
+    thrustScale: 0.70,
     hazardScale: 0.7,
-    timeScale: 1.6,
+    timeScale: 2.0,
     hardTimeLimit: false,
     scoreScale: 0.6,
   },
   {
     id: 'pilot',
     name: 'Pilot',
-    blurb: 'The intended way to fly. Fair margins, honest caves.',
+    blurb: 'Spürbar flotter als Neuling. Faire Reserven, ehrliche Höhlen.',
     lives: 6,
     gravityScale: 0.92,
-    fuelScale: 1.15,
+    fuelScale: 1.3,
     landToleranceScale: 1.2,
+    speedScale: 0.76,
+    thrustScale: 0.84,
     hazardScale: 0.88,
-    timeScale: 1.3,
+    timeScale: 1.55,
     hardTimeLimit: false,
     scoreScale: 1.0,
   },
   {
     id: 'ace',
-    name: 'Ace',
-    blurb: 'Baseline gravity and fuel. Landings start to bite.',
+    name: 'Ass',
+    blurb: 'Volles Tempo, voller Schub. Landungen werden anspruchsvoll.',
     lives: 4,
     gravityScale: 1.0,
     fuelScale: 1.0,
     landToleranceScale: 1.0,
+    speedScale: 1.0,
+    thrustScale: 1.0,
     hazardScale: 1.0,
     timeScale: 1.1,
     hardTimeLimit: false,
@@ -157,11 +172,13 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'veteran',
     name: 'Veteran',
-    blurb: 'Heavy hull, thin tanks, the clock is a real enemy.',
+    blurb: 'Schwere Hülle, knappe Tanks, die Uhr ist ein echter Gegner.',
     lives: 3,
     gravityScale: 1.12,
     fuelScale: 0.85,
     landToleranceScale: 0.85,
+    speedScale: 1.08,
+    thrustScale: 1.05,
     hazardScale: 1.2,
     timeScale: 1.0,
     hardTimeLimit: true,
@@ -169,12 +186,14 @@ export const DIFFICULTIES: Difficulty[] = [
   },
   {
     id: 'legend',
-    name: 'Legend',
-    blurb: 'One hull. Every hazard awake. Bring flow or bring nothing.',
+    name: 'Legende',
+    blurb: 'Eine Hülle. Jede Gefahr wach. Ohne Flow geht hier nichts.',
     lives: 1,
     gravityScale: 1.22,
     fuelScale: 0.72,
     landToleranceScale: 0.72,
+    speedScale: 1.18,
+    thrustScale: 1.12,
     hazardScale: 1.45,
     timeScale: 0.85,
     hardTimeLimit: true,
@@ -210,10 +229,10 @@ export interface GameSpeedOption {
 export type GameSpeedId = 'calm' | 'gentle' | 'standard' | 'brisk';
 
 export const GAME_SPEEDS: GameSpeedOption[] = [
-  { id: 'calm', label: 'Calm', scale: 0.7, blurb: '70% pace. Everything happens with time to spare.' },
-  { id: 'gentle', label: 'Gentle', scale: 0.85, blurb: '85% pace. The default: forgiving without feeling sluggish.' },
-  { id: 'standard', label: 'Standard', scale: 1.0, blurb: '100% pace. The speed the caves were tuned at.' },
-  { id: 'brisk', label: 'Brisk', scale: 1.15, blurb: '115% pace. Everything comes at you sooner.' },
+  { id: 'calm', label: 'Ruhig', scale: 0.7, blurb: '70 % Tempo. Alles passiert mit reichlich Vorlauf.' },
+  { id: 'gentle', label: 'Sanft', scale: 0.85, blurb: '85 % Tempo. Die Voreinstellung: nachsichtig, ohne zäh zu wirken.' },
+  { id: 'standard', label: 'Normal', scale: 1.0, blurb: '100 % Tempo. So wurden die Höhlen abgestimmt.' },
+  { id: 'brisk', label: 'Flott', scale: 1.15, blurb: '115 % Tempo. Alles kommt früher auf dich zu.' },
 ];
 
 export const DEFAULT_GAME_SPEED: GameSpeedId = 'gentle';

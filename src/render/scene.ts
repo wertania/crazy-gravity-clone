@@ -27,6 +27,11 @@ export const MIN_TILES_X_NARROW = 18;
 export const PLANE_Z = 0;
 export const WALL_DEPTH = 1.7;
 
+/** Ship lamp on lit levels. A contact glow, not a floodlight. */
+const LIT_LAMP = 10;
+/** Bloom strength at rest. Deliberately gentle: it is seasoning, not lighting. */
+export const BLOOM_BASE = 0.22;
+
 export class Stage {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -45,6 +50,7 @@ export class Stage {
   private width = 1;
   private height = 1;
   private quality: 0 | 1 | 2 = 2;
+  private qualityLocked = false;
 
   /** Camera focus in world units, driven by the game each frame. */
   private focus = new THREE.Vector2();
@@ -59,7 +65,7 @@ export class Stage {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
 
     this.scene.background = new THREE.Color(0x04060c);
     // No fog: the whole playfield sits within ~2 units of depth, so distance
@@ -72,14 +78,16 @@ export class Stage {
     this.ambient = new THREE.AmbientLight(0x35496a, 1.5);
     this.keyLight = new THREE.DirectionalLight(0xcfe4ff, 2.0);
     this.keyLight.position.set(-0.35, 0.7, 1);
-    // The ship's own lamp: a warm pool that follows the hull, and the only
-    // light source at all on unlit levels.
-    this.lamp = new THREE.PointLight(0x9fe6ff, 60, 18, 1.5);
+    // The ship's own lamp. On a lit level this is a *contact* light - just
+    // enough to separate the hull from the floor under it. It used to run at
+    // intensity 60 over an 18-unit range, which put a floodlit disc on the cave
+    // floor; with bloom on top the ship vanished inside a white ball.
+    this.lamp = new THREE.PointLight(0x9fe6ff, LIT_LAMP, 9, 2);
     this.scene.add(this.ambient, this.keyLight, this.lamp);
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.6, 0.85);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), BLOOM_BASE, 0.45, 0.92);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -183,9 +191,9 @@ export class Stage {
     const dark = radius > 0;
     this.ambient.intensity = dark ? 0.16 : 1.5;
     this.keyLight.intensity = dark ? 0.12 : 2.0;
-    this.lamp.intensity = dark ? radius * radius * 0.75 : 60;
-    this.lamp.distance = dark ? radius * 1.6 : 18;
-    this.lamp.decay = dark ? 1.25 : 1.5;
+    this.lamp.intensity = dark ? radius * radius * 0.75 : LIT_LAMP;
+    this.lamp.distance = dark ? radius * 1.6 : 9;
+    this.lamp.decay = dark ? 1.25 : 2;
   }
 
   setBloom(strength: number) {
@@ -199,7 +207,7 @@ export class Stage {
    * the game stays entirely playable there, it just stops glowing.
    */
   setQuality(level: 0 | 1 | 2) {
-    if (level === this.quality) return;
+    if (this.qualityLocked || level === this.quality) return;
     this.quality = level;
     this.bloom.enabled = level >= 2;
     const dpr = level >= 2 ? Math.min(window.devicePixelRatio, 2) : level === 1 ? 1 : 0.55;
@@ -209,6 +217,17 @@ export class Stage {
 
   get qualityLevel() {
     return this.quality;
+  }
+
+  /**
+   * Pin the quality tier, defeating the adaptive stepping. Only used by tests
+   * and screenshots: the software renderer always drops to tier 0, which meant
+   * the bloom-on look was never actually being looked at.
+   */
+  lockQuality(level: 0 | 1 | 2) {
+    this.qualityLocked = false;
+    this.setQuality(level);
+    this.qualityLocked = true;
   }
 
   render() {
