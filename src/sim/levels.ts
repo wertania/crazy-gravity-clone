@@ -19,9 +19,10 @@ export const LEVELS: LevelSpec[] = [
   // 1 ------------------------------------------------------------------------
   {
     id: 1,
-    name: 'First Light',
+    name: 'Erstes Licht',
     password: 'IGNITION',
-    hint: 'Rotate with A/D, thrust with W. Grab the crate, land soft on the blue base.',
+    hint:
+      'Drehen mit A/D, Schub mit W. Kiste holen, weich auf der blauen Basis aufsetzen.',
     width: 92,
     height: 50,
     seed: 1001,
@@ -41,7 +42,8 @@ export const LEVELS: LevelSpec[] = [
     id: 2,
     name: 'Ballast',
     password: 'THISTLE',
-    hint: 'Three crates. Every one aboard makes the hull heavier - haul or shuttle?',
+    hint:
+      'Drei Kisten. Jede an Bord macht die Hülle träger – alles auf einmal oder pendeln?',
     width: 104,
     height: 58,
     seed: 1002,
@@ -66,9 +68,10 @@ export const LEVELS: LevelSpec[] = [
   // 3 ------------------------------------------------------------------------
   {
     id: 3,
-    name: 'Wellspring',
+    name: 'Quelle',
     password: 'QUASAR',
-    hint: 'Tanks start half empty. Green pads refuel while you sit on them.',
+    hint:
+      'Der Tank startet halb leer. Grüne Felder betanken dich, solange du darauf stehst.',
     width: 112,
     height: 60,
     seed: 1003,
@@ -99,9 +102,10 @@ export const LEVELS: LevelSpec[] = [
   // 4 ------------------------------------------------------------------------
   {
     id: 4,
-    name: 'Keyhole',
+    name: 'Schlüsselloch',
     password: 'KEYSTONE',
-    hint: 'Coloured gates are solid until you fetch the matching key. They bump, they do not kill.',
+    hint:
+      'Farbige Tore sind dicht, bis du den passenden Schlüssel hast. Sie stoßen ab, sie töten nicht.',
     width: 112,
     height: 62,
     seed: 1004,
@@ -131,9 +135,10 @@ export const LEVELS: LevelSpec[] = [
   // 5 ------------------------------------------------------------------------
   {
     id: 5,
-    name: 'Crossfire',
+    name: 'Kreuzfeuer',
     password: 'CROSSBOW',
-    hint: 'Cannons fire blind on a fixed beat. Read the rhythm, then cross.',
+    hint:
+      'Kanonen feuern blind im festen Takt. Erst den Rhythmus lesen, dann durch.',
     width: 118,
     height: 62,
     seed: 1005,
@@ -166,9 +171,10 @@ export const LEVELS: LevelSpec[] = [
   // 6 ------------------------------------------------------------------------
   {
     id: 6,
-    name: 'Lodestone',
+    name: 'Magnetstein',
     password: 'MAGNETO',
-    hint: 'Magnets pull the hull off your heading. Fight the field early, not late.',
+    hint:
+      'Magnete ziehen dich vom Kurs. Gegen das Feld früh steuern, nicht spät.',
     width: 114,
     height: 62,
     seed: 1006,
@@ -200,9 +206,10 @@ export const LEVELS: LevelSpec[] = [
   // 7 ------------------------------------------------------------------------
   {
     id: 7,
-    name: 'Updraft',
+    name: 'Aufwind',
     password: 'ZEPHYR',
-    hint: 'Blowers push hard inside their volume. Ride them up, never fight them sideways.',
+    hint:
+      'Gebläse drücken hart in ihrem Schacht. Mitfliegen, niemals quer dagegen.',
     width: 114,
     height: 68,
     seed: 1007,
@@ -233,9 +240,10 @@ export const LEVELS: LevelSpec[] = [
   // 8 ------------------------------------------------------------------------
   {
     id: 8,
-    name: 'Piston',
+    name: 'Kolben',
     password: 'PISTON',
-    hint: 'Rods crush. Unlike gates they will not push you aside - time the gap.',
+    hint:
+      'Stäbe zerquetschen. Anders als Tore schieben sie dich nicht weg – die Lücke abpassen.',
     width: 118,
     height: 62,
     seed: 1008,
@@ -268,9 +276,10 @@ export const LEVELS: LevelSpec[] = [
   // 9 ------------------------------------------------------------------------
   {
     id: 9,
-    name: 'Floodgate',
+    name: 'Schleuse',
     password: 'FLOODGATE',
-    hint: 'Sluices only yield to a hull already moving their way. Commit or bounce.',
+    hint:
+      'Schleusen öffnen nur für eine Hülle, die schon in ihre Richtung fliegt. Ganz oder gar nicht.',
     width: 118,
     height: 64,
     seed: 1009,
@@ -302,9 +311,10 @@ export const LEVELS: LevelSpec[] = [
   // 10 -----------------------------------------------------------------------
   {
     id: 10,
-    name: 'Crucible',
+    name: 'Schmelztiegel',
     password: 'CRUCIBLE',
-    hint: 'Halfway. Rods and cannons share a room now - one hazard at a time is over.',
+    hint:
+      'Halbzeit. Stäbe und Kanonen teilen sich einen Raum – eine Gefahr nach der anderen ist vorbei.',
     width: 124,
     height: 66,
     seed: 1010,
@@ -342,9 +352,10 @@ export const LEVELS: LevelSpec[] = [
   // 11 -----------------------------------------------------------------------
   {
     id: 11,
-    name: 'Frostbite',
+    name: 'Frostbiss',
     password: 'FROSTBITE',
-    hint: 'Red crystal is lethal at any speed. Rock at least lets you land on a pad.',
+    hint:
+      'Rotes Kristall tötet bei jedem Tempo. Fels lässt dich wenigstens auf einem Feld landen.',
     width: 124,
     height: 66,
     seed: 1011,
@@ -380,9 +391,10 @@ export const LEVELS: LevelSpec[] = [
   // 12 -----------------------------------------------------------------------
   {
     id: 12,
-    name: 'Hive',
+    name: 'Nest',
     password: 'HORNET',
-    hint: 'Turrets track and lead you. Break line of sight or out-fly the prediction.',
+    hint:
+      'Geschütze zielen vorausschauend. Sichtlinie brechen oder die Vorhaltung ausfliegen.',
     width: 124,
     height: 68,
     seed: 1012,
@@ -418,9 +430,10 @@ export const LEVELS: LevelSpec[] = [
   // 13 -----------------------------------------------------------------------
   {
     id: 13,
-    name: 'Glow-worm',
+    name: 'Glühwürmchen',
     password: 'GLOWORM',
-    hint: 'The cave is unlit. Your lamp is all you get - fly slow enough to see the turn.',
+    hint:
+      'Die Höhle ist unbeleuchtet. Deine Lampe ist alles – langsam genug fliegen, um die Kurve zu sehen.',
     width: 124,
     height: 66,
     seed: 1013,
@@ -449,9 +462,10 @@ export const LEVELS: LevelSpec[] = [
   // 14 -----------------------------------------------------------------------
   {
     id: 14,
-    name: 'Upturn',
+    name: 'Kehrtwende',
     password: 'UPTURN',
-    hint: 'Violet fields invert gravity. Down becomes up the instant you cross the line.',
+    hint:
+      'Violette Felder drehen die Schwerkraft um. Unten wird oben, sobald du die Linie kreuzt.',
     width: 124,
     height: 72,
     seed: 1014,
@@ -487,9 +501,10 @@ export const LEVELS: LevelSpec[] = [
   // 15 -----------------------------------------------------------------------
   {
     id: 15,
-    name: 'Cataract',
+    name: 'Katarakt',
     password: 'CATARACT',
-    hint: 'A long fall is free speed and free flow - if you can still stop at the bottom.',
+    hint:
+      'Ein langer Sturz ist gratis Tempo und gratis Flow – wenn du unten noch bremsen kannst.',
     width: 100,
     height: 92,
     seed: 1015,
@@ -520,9 +535,10 @@ export const LEVELS: LevelSpec[] = [
   // 16 -----------------------------------------------------------------------
   {
     id: 16,
-    name: 'Meander',
+    name: 'Mäander',
     password: 'MEANDER',
-    hint: 'Three keys, three gates, one hull. Plan the order before you burn the fuel.',
+    hint:
+      'Drei Schlüssel, drei Tore, eine Hülle. Reihenfolge planen, bevor der Sprit weg ist.',
     width: 134,
     height: 72,
     seed: 1016,
@@ -565,9 +581,10 @@ export const LEVELS: LevelSpec[] = [
   // 17 -----------------------------------------------------------------------
   {
     id: 17,
-    name: 'Bellows',
+    name: 'Blasebalg',
     password: 'BELLOWS',
-    hint: 'Wind and magnetism at once. Trim your heading against both before you commit.',
+    hint:
+      'Wind und Magnetismus gleichzeitig. Kurs gegen beide trimmen, bevor du dich festlegst.',
     width: 128,
     height: 72,
     seed: 1017,
@@ -606,9 +623,10 @@ export const LEVELS: LevelSpec[] = [
   // 18 -----------------------------------------------------------------------
   {
     id: 18,
-    name: 'Ironclad',
+    name: 'Eisenpanzer',
     password: 'IRONCLAD',
-    hint: 'Everything the cave has learned about you, in one run.',
+    hint:
+      'Alles, was die Höhle über dich gelernt hat, in einem Anlauf.',
     width: 134,
     height: 74,
     seed: 1018,
@@ -654,9 +672,10 @@ export const LEVELS: LevelSpec[] = [
   // 19 -----------------------------------------------------------------------
   {
     id: 19,
-    name: 'Plummet',
+    name: 'Sturzflug',
     password: 'PLUMMET',
-    hint: 'Thin tanks, deep shaft. Every pad you skip is a gamble you have to win twice.',
+    hint:
+      'Knappe Tanks, tiefer Schacht. Jedes ausgelassene Feld ist eine Wette, die du zweimal gewinnen musst.',
     width: 108,
     height: 96,
     seed: 1019,
@@ -697,9 +716,10 @@ export const LEVELS: LevelSpec[] = [
   // 20 -----------------------------------------------------------------------
   {
     id: 20,
-    name: 'Eventide',
+    name: 'Abendrot',
     password: 'EVENTIDE',
-    hint: 'A collapsed core still pulls. Everything else is still awake. Bring it home.',
+    hint:
+      'Ein kollabierter Kern zieht immer noch. Alles andere ist auch noch wach. Bring sie heim.',
     width: 138,
     height: 82,
     seed: 1020,

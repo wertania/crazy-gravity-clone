@@ -71,21 +71,21 @@ export class TouchControls {
     this.root.hidden = true;
     this.root.innerHTML = `
       <div class="touch-zone touch-zone-left" data-role="steer">
-        <div class="touch-steer" role="slider" aria-label="Steering"
+        <div class="touch-steer" role="slider" aria-label="Lenkung"
              aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0">
           <div class="touch-track"><span class="touch-centre"></span><i class="touch-knob"></i></div>
-          <span class="touch-label">◄ DRAG TO TURN ►</span>
+          <span class="touch-label">◄ ZIEHEN ZUM LENKEN ►</span>
         </div>
       </div>
       <div class="touch-mid">
-        <button class="touch-btn" data-role="level" type="button" aria-label="Auto-level assist">LEVEL</button>
+        <button class="touch-btn" data-role="level" type="button" aria-label="Lage-Assistent">LAGE</button>
         <button class="touch-btn" data-role="pause" type="button" aria-label="Pause">II</button>
       </div>
       <div class="touch-zone touch-zone-right" data-role="throttle">
-        <div class="touch-throttle" role="slider" aria-label="Throttle"
+        <div class="touch-throttle" role="slider" aria-label="Schub"
              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="touch-vtrack"><b class="touch-fill"></b><i class="touch-knob"></i></div>
-          <span class="touch-label">▲ DRAG UP</span>
+          <span class="touch-label">▲ HOCHZIEHEN</span>
         </div>
       </div>`;
 

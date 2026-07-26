@@ -4,10 +4,20 @@ A gravity cave flyer built with Three.js and TypeScript — a modern take on the
 1996 Windows shareware game *Crazy Gravity* by Axel Meierhöfer (XLM Software),
 which itself descends from *Thrust* (1986) and Atari's *Gravitar*.
 
+> **The game's interface is German.** Menus, HUD, level names and hints are all
+> in German; this README stays in English as developer documentation.
+
 Rotate the ship, burn the engine along its nose, fight a constant downward pull,
 pick up freight and put it down softly on the base pad. The rock is always fatal.
 
 ![Cave 01, First Light](shots/level01.png)
+
+<table>
+<tr>
+<td><img src="shots/boot.png" alt="Loading screen: ship silhouette, progress bar, status line" /></td>
+<td><img src="shots/title.png" alt="Title menu: two-line rows with a label, an explanation and a value chip" /></td>
+</tr>
+</table>
 
 <table>
 <tr>
@@ -52,14 +62,14 @@ npm run preview        # serve the built bundle
 
 | | |
 |---|---|
-| <kbd>A</kbd> / <kbd>←</kbd> | rotate left |
-| <kbd>D</kbd> / <kbd>→</kbd> | rotate right |
-| <kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> | thrust along the nose |
-| <kbd>S</kbd> / <kbd>↓</kbd> | auto-level assist |
-| <kbd>R</kbd> | restart the cave |
-| <kbd>Esc</kbd> / <kbd>P</kbd> | pause |
-| <kbd>M</kbd> | mute |
-| <kbd>F3</kbd> | debug overlay |
+| <kbd>A</kbd> / <kbd>←</kbd> | links drehen — rotate left |
+| <kbd>D</kbd> / <kbd>→</kbd> | rechts drehen — rotate right |
+| <kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> | Schub — thrust along the nose |
+| <kbd>S</kbd> / <kbd>↓</kbd> | Lage-Assistent — auto-level assist |
+| <kbd>R</kbd> | Höhle neu starten — restart the cave |
+| <kbd>Esc</kbd> / <kbd>P</kbd> | Pause |
+| <kbd>M</kbd> | Ton an/aus — mute |
+| <kbd>F3</kbd> | Technik-Anzeige — debug overlay |
 
 Gamepads work too — left stick or d-pad to turn, A or the right trigger to
 thrust. The trigger is analog.
@@ -138,6 +148,11 @@ Deliberately modern:
   exactly one mechanic in a safe room before it is ever combined.
 - **Medals and a par time** instead of a hard timer — except on Veteran and
   Legend, where the clock does bite.
+- **A loading screen that exists before the JavaScript does.** Markup, styles
+  and progress script are inline in `index.html`, so the very first paint shows
+  a title card rather than a black rectangle. Its phases are real milestones —
+  bundle running, shaders compiling, first frame composited — not a fake timer,
+  and it explains a slow connection and a failed download instead of hanging.
 - **Autosave**, so passwords are a convenience rather than homework.
 - **Analog throttle.** The original was strictly on/off and a key still gives
   full power, but the touch slider and gamepad triggers are continuous, and
@@ -170,7 +185,7 @@ src/
     actors.ts     ship and props
     particles.ts  one pooled additive point cloud
     backdrop.ts   parallax layers
-  ui/           DOM overlay
+  ui/           DOM overlay (German)
     hud.ts, screens.ts, touch.ts
   audio/        procedural WebAudio, no sample files
 tests/          vitest unit + integration, playwright end-to-end
@@ -271,7 +286,9 @@ pilot, not evidence those caves are unwinnable — it follows a static route and
 loses time in long fuel-critical tunnels and dies at sharp bends in narrow
 tubes. Their geometry is covered instead by the reachability validator.
 
-**End to end** (`tests/e2e/smoke.spec.ts`) drives a real Chromium: WebGL boots,
+**End to end** (`tests/e2e/smoke.spec.ts`) drives a real Chromium: the loading
+screen carries the wait with the bundle held open and hands over cleanly once it
+lands, a failed download is reported rather than hung on, WebGL boots,
 the menus navigate, keyboard flight actually moves the ship and burns fuel,
 gravity pulls it back down, pause genuinely freezes the simulation, restart
 resets it, passwords unlock caves, progress survives a reload, and — on the
@@ -320,6 +337,16 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The results card scaled the total by the difficulty multiplier but printed
   unscaled rows, and omitted freight and key points entirely — an itemised
   table whose rows did not add up to its own total.
+
+A fourth round, from the loading screen and the menu rewrite:
+
+- The menu's selection marker was a CSS `::before` glyph, and Chromium folds
+  pseudo-element content into the accessible name — so the selected row
+  announced itself as "▸ Zurück". Noise for a screen reader, and it silently
+  broke name-based lookups. The marker is now drawn with borders, which never
+  enter the accessibility tree.
+- The title panel overflowed its own `max-height` on a 800-pixel-tall window,
+  cutting the last menu row in half.
 
 A third round, after making the hull speed difficulty-dependent — two of these
 were real balance bugs that only a slow tier could expose:

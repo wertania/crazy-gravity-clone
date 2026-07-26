@@ -126,8 +126,8 @@ export interface Difficulty {
 export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'rookie',
-    name: 'Rookie',
-    blurb: 'A slow, heavy, forgiving hull. Deep tanks, patient hazards. Learn the caves.',
+    name: 'Neuling',
+    blurb: 'Langsam, schwer, nachsichtig. Volle Tanks, träge Gefahren. Zum Lernen.',
     lives: 9,
     gravityScale: 0.78,
     fuelScale: 2.0,
@@ -142,7 +142,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'pilot',
     name: 'Pilot',
-    blurb: 'Noticeably quicker than Rookie. Fair margins, honest caves.',
+    blurb: 'Spürbar flotter als Neuling. Faire Reserven, ehrliche Höhlen.',
     lives: 6,
     gravityScale: 0.92,
     fuelScale: 1.3,
@@ -156,8 +156,8 @@ export const DIFFICULTIES: Difficulty[] = [
   },
   {
     id: 'ace',
-    name: 'Ace',
-    blurb: 'Full speed and full thrust. Landings start to bite.',
+    name: 'Ass',
+    blurb: 'Volles Tempo, voller Schub. Landungen werden anspruchsvoll.',
     lives: 4,
     gravityScale: 1.0,
     fuelScale: 1.0,
@@ -172,7 +172,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'veteran',
     name: 'Veteran',
-    blurb: 'Heavy hull, thin tanks, the clock is a real enemy.',
+    blurb: 'Schwere Hülle, knappe Tanks, die Uhr ist ein echter Gegner.',
     lives: 3,
     gravityScale: 1.12,
     fuelScale: 0.85,
@@ -186,8 +186,8 @@ export const DIFFICULTIES: Difficulty[] = [
   },
   {
     id: 'legend',
-    name: 'Legend',
-    blurb: 'One hull. Every hazard awake. Bring flow or bring nothing.',
+    name: 'Legende',
+    blurb: 'Eine Hülle. Jede Gefahr wach. Ohne Flow geht hier nichts.',
     lives: 1,
     gravityScale: 1.22,
     fuelScale: 0.72,
@@ -229,10 +229,10 @@ export interface GameSpeedOption {
 export type GameSpeedId = 'calm' | 'gentle' | 'standard' | 'brisk';
 
 export const GAME_SPEEDS: GameSpeedOption[] = [
-  { id: 'calm', label: 'Calm', scale: 0.7, blurb: '70% pace. Everything happens with time to spare.' },
-  { id: 'gentle', label: 'Gentle', scale: 0.85, blurb: '85% pace. The default: forgiving without feeling sluggish.' },
-  { id: 'standard', label: 'Standard', scale: 1.0, blurb: '100% pace. The speed the caves were tuned at.' },
-  { id: 'brisk', label: 'Brisk', scale: 1.15, blurb: '115% pace. Everything comes at you sooner.' },
+  { id: 'calm', label: 'Ruhig', scale: 0.7, blurb: '70 % Tempo. Alles passiert mit reichlich Vorlauf.' },
+  { id: 'gentle', label: 'Sanft', scale: 0.85, blurb: '85 % Tempo. Die Voreinstellung: nachsichtig, ohne zäh zu wirken.' },
+  { id: 'standard', label: 'Normal', scale: 1.0, blurb: '100 % Tempo. So wurden die Höhlen abgestimmt.' },
+  { id: 'brisk', label: 'Flott', scale: 1.15, blurb: '115 % Tempo. Alles kommt früher auf dich zu.' },
 ];
 
 export const DEFAULT_GAME_SPEED: GameSpeedId = 'gentle';

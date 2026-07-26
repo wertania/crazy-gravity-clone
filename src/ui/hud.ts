@@ -89,7 +89,7 @@ export class Hud {
     this.rotate = document.createElement('div');
     this.rotate.className = 'rotate-hint';
     this.rotate.hidden = true;
-    this.rotate.textContent = '↻ Landscape gives you more cave to see';
+    this.rotate.textContent = '↻ Quer siehst du mehr von der Höhle';
     document.body.appendChild(this.rotate);
   }
 
@@ -125,7 +125,7 @@ export class Hud {
       const el = document.createElement('span');
       el.className = 'keyicon';
       el.style.color = `#${KEY_HEX[color].toString(16).padStart(6, '0')}`;
-      el.title = `${color} key`;
+      el.title = `Schlüssel ${color}`;
       this.keys.appendChild(el);
       this.keyIcons.set(color, el);
     }
@@ -196,8 +196,8 @@ export class Hud {
         pip.classList.toggle('delivered', c.state === 'delivered');
       });
       const carried = world.ship.carrying.length;
-      this.carry.textContent = `${cargoDelivered(world)}/${world.cargo.length} home${
-        carried ? ` · ${carried} aboard` : ''
+      this.carry.textContent = `${cargoDelivered(world)}/${world.cargo.length} geliefert${
+        carried ? ` · ${carried} an Bord` : ''
       }`;
     }
 

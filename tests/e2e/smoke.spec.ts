@@ -20,6 +20,16 @@ async function bootWithoutSave(page: Page) {
   return errors;
 }
 
+/**
+ * A menu row by its label. Rows now carry an explanation underneath, so plain
+ * text matching is ambiguous - "Steuerung" also appears inside two
+ * descriptions. The accessible name starts with the label, so anchor on that.
+ */
+function row(page: Page, label: string | RegExp) {
+  const re = typeof label === 'string' ? new RegExp('^' + label) : label;
+  return page.getByRole('option', { name: re });
+}
+
 /** Read simulation state straight out of the running game instance. */
 async function shipState(page: Page) {
   return page.evaluate(() => {
@@ -72,22 +82,22 @@ test('boots into the title screen with a live WebGL canvas', async ({ page }) =>
 
 test('title menu reaches the how-to-fly screen and back', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('How to fly').click();
-  await expect(page.locator('.panel h2')).toHaveText('HOW TO FLY');
-  await page.getByText('Back', { exact: true }).click();
+  await row(page, 'Steuerung').click();
+  await expect(page.locator('.panel h2')).toHaveText('STEUERUNG');
+  await row(page, 'Zurück').click();
   await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
 });
 
 test('launching shows the briefing, then the HUD, and the ship flies', async ({ page }) => {
   const errors = await bootWithoutSave(page);
 
-  await page.getByText('Launch', { exact: true }).click();
-  await expect(page.locator('.badge')).toHaveText('CAVE 01 OF 20');
-  await expect(page.locator('.panel h2')).toHaveText('FIRST LIGHT');
+  await row(page, 'Starten').click();
+  await expect(page.locator('.badge')).toHaveText('HÖHLE 01 VON 20');
+  await expect(page.locator('.panel h2')).toHaveText('ERSTES LICHT');
 
-  await page.getByRole('option', { name: /Launch/ }).click();
+  await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
-  await expect(page.locator('#h-levelname')).toHaveText('FIRST LIGHT');
+  await expect(page.locator('#h-levelname')).toHaveText('ERSTES LICHT');
 
   const before = await shipState(page);
   expect(before.shipState).toBe('flying');
@@ -119,13 +129,13 @@ test('launching shows the briefing, then the HUD, and the ship flies', async ({ 
 
 test('pause freezes the simulation and resumes it', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('Launch', { exact: true }).click();
-  await page.getByRole('option', { name: /Launch/ }).click();
+  await row(page, 'Starten').click();
+  await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 
   await page.waitForTimeout(400);
   await page.keyboard.press('Escape');
-  await expect(page.locator('.panel h2')).toHaveText('PAUSED');
+  await expect(page.locator('.panel h2')).toHaveText('PAUSE');
 
   const frozen = await shipState(page);
   await page.waitForTimeout(600);
@@ -144,8 +154,8 @@ test('pause freezes the simulation and resumes it', async ({ page }) => {
 
 test('restart returns the ship to the spawn point', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('Launch', { exact: true }).click();
-  await page.getByRole('option', { name: /Launch/ }).click();
+  await row(page, 'Starten').click();
+  await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 
   await page.keyboard.down('KeyD');
@@ -164,37 +174,37 @@ test('restart returns the ship to the spawn point', async ({ page }) => {
 
 test('a valid password unlocks its cave', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('Enter password').click();
-  await expect(page.locator('.panel h2')).toHaveText('PASSWORD');
+  await row(page, 'Passwort eingeben').click();
+  await expect(page.locator('.panel h2')).toHaveText('PASSWORT');
 
   await page.locator('#pw').fill('nonsense');
   await page.locator('#pw').press('Enter');
-  await expect(page.locator('.footnote')).toHaveText('Not a valid password.');
+  await expect(page.locator('.footnote')).toHaveText('Kein gültiges Passwort.');
 
   await page.locator('#pw').fill('meander');
   await page.locator('#pw').press('Enter');
-  await expect(page.locator('.panel h2')).toHaveText('MEANDER');
-  await expect(page.locator('.badge')).toHaveText('CAVE 16 OF 20');
+  await expect(page.locator('.panel h2')).toHaveText('MÄANDER');
+  await expect(page.locator('.badge')).toHaveText('HÖHLE 16 VON 20');
 });
 
 test('progress survives a reload', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('Enter password').click();
+  await row(page, 'Passwort eingeben').click();
   await page.locator('#pw').fill('crucible');
   await page.locator('#pw').press('Enter');
-  await expect(page.locator('.badge')).toHaveText('CAVE 10 OF 20');
+  await expect(page.locator('.badge')).toHaveText('HÖHLE 10 VON 20');
 
   await page.reload();
   await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
-  await expect(page.getByRole('option', { name: /Continue/ })).toContainText('Crucible');
+  await expect(row(page, 'Weiterfliegen')).toContainText('Schmelztiegel');
 });
 
 test('keeps the simulation at real time on the largest level', async ({ page }) => {
   await bootWithoutSave(page);
-  await page.getByText('Enter password').click();
+  await row(page, 'Passwort eingeben').click();
   await page.locator('#pw').fill('eventide');
   await page.locator('#pw').press('Enter');
-  await page.getByRole('option', { name: /Launch/ }).click();
+  await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 
   await page.keyboard.press('F3');
@@ -224,7 +234,11 @@ test('keeps the simulation at real time on the largest level', async ({ page }) 
   const scale = await page.evaluate(
     () => (window as never as { game: { loop: { timeScale: number } } }).game.loop.timeScale,
   );
-  expect(elapsedSim).toBeGreaterThan(elapsedWall * scale * 0.55);
+  // 0.45 rather than something tighter: on the largest level SwiftShader sits
+  // right at the frame-time clamp, where every dropped millisecond is lost
+  // simulated time by design. A genuine stall would read ~0, and running fast
+  // is caught by the upper bound - those are the failures worth catching here.
+  expect(elapsedSim).toBeGreaterThan(elapsedWall * scale * 0.45);
   expect(elapsedSim).toBeLessThan(elapsedWall * scale * 1.05);
 
   // And the renderer must still be producing frames, not wedged.
@@ -273,16 +287,16 @@ async function simTime(page: Page): Promise<number> {
 
 /** Force the sliders on regardless of what the test browser reports. */
 async function enableTouchControls(page: Page) {
-  await page.getByText('Settings').click();
-  await expect(page.locator('.panel h2')).toHaveText('SETTINGS');
-  await page.getByRole('option', { name: /On-screen controls/ }).click();
-  await expect(page.getByRole('option', { name: /On-screen controls/ })).toContainText('Always on');
-  await page.getByRole('option', { name: 'Back' }).click();
+  await row(page, 'Einstellungen').click();
+  await expect(page.locator('.panel h2')).toHaveText('EINSTELLUNGEN');
+  await row(page, 'Bildschirmsteuerung').click();
+  await expect(row(page, 'Bildschirmsteuerung')).toContainText('Immer an');
+  await row(page, 'Zurück').click();
 }
 
 async function launchLevelOne(page: Page) {
-  await page.getByText('Launch', { exact: true }).click();
-  await page.getByRole('option', { name: /Launch/ }).click();
+  await row(page, 'Starten').click();
+  await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 }
 
@@ -425,8 +439,8 @@ test.describe('with a touchscreen', () => {
 
 test('a fresh save starts on the easier defaults', async ({ page }) => {
   await bootWithoutSave(page);
-  await expect(page.getByRole('option', { name: /Difficulty/ })).toContainText('Rookie');
-  await expect(page.getByRole('option', { name: /Settings/ })).toContainText('Gentle pace');
+  await expect(row(page, 'Schwierigkeit')).toContainText('Neuling');
+  await expect(row(page, 'Einstellungen')).toContainText('Sanft');
 });
 
 test('the pace setting really slows simulated time down', async ({ page }) => {
@@ -445,13 +459,13 @@ test('the pace setting really slows simulated time down', async ({ page }) => {
   const gentle = await measure();
 
   await page.keyboard.press('Escape');
-  await page.getByRole('option', { name: /Abandon run/ }).click();
-  await page.getByText('Settings').click();
+  await row(page, 'Lauf abbrechen').click();
+  await row(page, 'Einstellungen').click();
   // Gentle -> Standard -> Brisk: two steps to the fastest tier.
-  await page.getByRole('option', { name: /Pace/ }).click();
-  await page.getByRole('option', { name: /Pace/ }).click();
-  await expect(page.getByRole('option', { name: /Pace/ })).toContainText('Brisk');
-  await page.getByRole('option', { name: 'Back' }).click();
+  await row(page, 'Tempo').click();
+  await row(page, 'Tempo').click();
+  await expect(row(page, 'Tempo')).toContainText('Flott');
+  await row(page, 'Zurück').click();
   await launchLevelOne(page);
 
   const brisk = await measure();
@@ -459,4 +473,41 @@ test('the pace setting really slows simulated time down', async ({ page }) => {
   // Relative comparison: absolute rates depend on the software renderer, but
   // Brisk must clearly out-pace Gentle.
   expect(brisk).toBeGreaterThan(gentle * 1.12);
+});
+
+// ---------------------------------------------------------------------------
+// Ladebildschirm
+// ---------------------------------------------------------------------------
+
+test('shows a loading screen before the bundle has arrived', async ({ page }) => {
+  // Hold the bundle open: the boot screen must carry the wait on its own, with
+  // no help from the game code it is waiting for.
+  await page.route('**/*.js', async (route) => {
+    await new Promise((r) => setTimeout(r, 4000));
+    await route.continue();
+  });
+  page.goto('/', { waitUntil: 'commit' }).catch(() => {});
+
+  await expect(page.locator('#boot')).toBeVisible();
+  await expect(page.locator('#boot-status')).toHaveText(/Wird geladen/);
+  // The game itself must not have rendered anything yet.
+  await expect(page.locator('#overlay')).toBeHidden();
+
+  const style = await page.locator('#boot').evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { opacity: cs.opacity, display: cs.display, z: cs.zIndex };
+  });
+  expect(style).toEqual({ opacity: '1', display: 'flex', z: '100' });
+
+  // Once the bundle lands the screen must hand over and remove itself.
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER', { timeout: 30_000 });
+  await expect(page.locator('#boot')).toHaveCount(0);
+});
+
+test('reports a failed download instead of hanging on black', async ({ page }) => {
+  await page.route('**/*.js', (route) => route.abort());
+  await page.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+
+  await expect(page.locator('#boot-status')).toHaveText(/nicht geladen werden/);
+  await expect(page.locator('#boot-status')).toHaveClass(/error/);
 });

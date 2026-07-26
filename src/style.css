@@ -20,7 +20,12 @@
   --flow: #c77dff;
   --panel: rgba(8, 12, 20, 0.86);
   --edge: rgba(79, 214, 255, 0.28);
+  /* Monospace for instruments: gauges, clocks, scores - anything that must not
+     jump around as digits change. */
   --font: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* Prose and menus get a real UI face. Wide-tracked monospace looks the part
+     but is genuinely hard to read a paragraph of, which is what the menus are. */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 * {
@@ -300,92 +305,176 @@ body::after {
 }
 
 .panel {
-  width: min(760px, 92vw);
+  width: min(720px, 94vw);
   max-height: 92vh;
   overflow: auto;
-  padding: clamp(18px, 3.4vmin, 40px);
+  padding: clamp(20px, 3.6vmin, 44px);
   border: 1px solid var(--edge);
   background: var(--panel);
   box-shadow: 0 0 80px rgba(0, 0, 0, 0.7), inset 0 0 60px rgba(79, 214, 255, 0.04);
+  font-family: var(--font-ui);
+  font-size: clamp(14px, 1.6vmin, 16px);
+  line-height: 1.6;
 }
 
 .panel h1 {
   margin: 0 0 0.1em;
-  font-size: clamp(28px, 6.4vmin, 62px);
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: clamp(26px, 5.4vmin, 50px);
   letter-spacing: 0.16em;
   color: var(--accent);
   text-shadow: 0 0 28px rgba(79, 214, 255, 0.4);
 }
 
 .panel h2 {
-  margin: 0 0 0.6em;
-  font-size: clamp(18px, 3.2vmin, 28px);
-  letter-spacing: 0.12em;
+  margin: 0 0 0.7em;
+  font-family: var(--font);
+  font-size: clamp(17px, 2.8vmin, 24px);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--accent);
 }
 
 .panel .tagline {
-  margin: 0 0 1.6em;
+  margin: 0.2em 0 1.4em;
   color: var(--dim);
-  letter-spacing: 0.1em;
+  font-size: 1em;
 }
 
 .panel p {
-  line-height: 1.65;
-  color: #b7c6d8;
+  margin: 0 0 0.9em;
+  max-width: 62ch;
+  color: #c3d2e4;
 }
 
 .panel .hint {
-  color: var(--accent);
-  border-left: 2px solid var(--accent-dim);
-  padding-left: 0.9em;
-  margin: 1.2em 0;
+  color: #d8ecf7;
+  border-left: 3px solid var(--accent-dim);
+  background: rgba(79, 214, 255, 0.05);
+  padding: 0.7em 1em;
+  margin: 1.1em 0;
 }
 
+/* Menu rows are two-line: a plain-language label, and an explanation under it.
+   The old single-line "label ........ tiny dim hint" layout crammed four facts
+   into a right-aligned whisper, which is what made these screens hard to read. */
 .menu {
   list-style: none;
-  margin: 1.4em 0 0;
+  margin: 1.3em 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35em;
+  gap: 0.3em;
 }
 
 .menu li {
-  padding: 0.6em 1em;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2em;
+  padding: 0.52em 1em 0.52em 1.5em;
   border: 1px solid transparent;
+  border-radius: 4px;
   color: var(--ink);
   cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  gap: 1em;
   transition: background 90ms, border-color 90ms;
 }
 
-.menu li small {
-  color: var(--dim);
+.mi-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  min-width: 0;
 }
 
+.mi-label {
+  font-size: 1.06em;
+}
+
+.mi-desc {
+  color: var(--dim);
+  font-size: 0.88em;
+  line-height: 1.45;
+}
+
+.mi-value {
+  flex: 0 0 auto;
+  font-family: var(--font);
+  font-size: 0.86em;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  padding: 0.2em 0.7em;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* The selection marker is drawn, not typed. A ::before glyph gets folded into
+   the element's accessible name, so the row announced itself as "▸ Zurück" -
+   noise for a screen reader, and it broke name-based lookups. */
 .menu li[aria-selected="true"] {
   border-color: var(--accent);
-  background: rgba(79, 214, 255, 0.09);
+  background: rgba(79, 214, 255, 0.1);
 }
 
 .menu li[aria-selected="true"]::before {
-  content: "▸ ";
-  color: var(--accent);
+  content: "";
+  position: absolute;
+  left: 0.45em;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid var(--accent);
 }
 
 .menu li[aria-disabled="true"] {
-  opacity: 0.35;
+  opacity: 0.38;
   cursor: default;
+}
+
+.menu li[aria-disabled="true"] .mi-value {
+  color: var(--dim);
+}
+
+/* Career figures as one compact strip rather than a two-row grid: on a laptop
+   the title panel was overflowing its own max-height. */
+.statline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em 1.6em;
+  margin: 0.2em 0 0;
+  color: var(--dim);
+  font-size: 0.92em;
+}
+
+.statline b {
+  color: var(--ink);
+  font-weight: 500;
+  font-family: var(--font);
+}
+
+/* One shared explanation slot under the list, following the selection, so long
+   descriptions do not have to fit on the row itself. */
+.menu-detail {
+  min-height: 2.8em;
+  margin: 1em 0 0;
+  padding-left: 1.5em;
+  color: var(--dim);
+  font-size: 0.92em;
 }
 
 .keycaps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 0.5em 1.6em;
-  margin: 1.4em 0 0;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.6em 1.8em;
+  margin: 1.3em 0 0;
   color: var(--dim);
+  font-size: 0.95em;
 }
 
 .keycaps b {
@@ -410,8 +499,12 @@ kbd {
 .scoretable {
   width: 100%;
   border-collapse: collapse;
-  margin: 1em 0;
+  margin: 1.1em 0;
   font-variant-numeric: tabular-nums;
+}
+
+.scoretable td:last-child {
+  font-family: var(--font);
 }
 
 .scoretable td {
@@ -474,10 +567,11 @@ kbd {
 }
 
 .footnote {
-  margin-top: 1.8em;
+  margin-top: 1.6em;
+  max-width: 66ch;
   color: var(--dim);
-  font-size: 0.85em;
-  line-height: 1.7;
+  font-size: 0.88em;
+  line-height: 1.65;
 }
 
 .grid2 {
