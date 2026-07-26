@@ -34,9 +34,12 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 </tr>
 </table>
 
-> Screenshots are captured from the built bundle in a real Chromium, but under
-> SwiftShader software rasterisation — the quality system therefore steps bloom
-> off before the shot is taken. On hardware the emissive surfaces glow.
+> Screenshots are captured from the built bundle in a real Chromium under
+> SwiftShader software rasterisation, with the quality tier **pinned to the top
+> one** so bloom is actually on. Pinning matters: the adaptive quality system
+> disables bloom on a software renderer, so screenshots taken without it show a
+> different game from the one a GPU renders — which is how an over-bright build
+> once shipped past several rounds of "looks fine to me".
 
 > **On the name and the content.** Game mechanics are not copyrightable, but
 > names, art, sound and level layouts are. Nothing here is taken from the
@@ -327,6 +330,13 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The particle shader patch declared an attribute named `size`, which collides
   with `PointsMaterial`'s own uniform and fails to compile. Only a real browser
   finds that.
+- The ship carried a point light at intensity 60 over an 18-unit range on lit
+  levels, which put a floodlit disc on the cave floor; with bloom on top the
+  ship disappeared inside a white ball. Every screenshot until then had been
+  taken with bloom auto-disabled by the quality system, so nobody had looked at
+  the thing being complained about. There is now a browser test that pins the
+  top tier and measures the fraction of the frame blown out to white — ~0.03%
+  after the fix against ~0.28% before, so it discriminates.
 - The game loop capped catch-up at 8 sub-steps, which silently ran the
   simulation in slow motion on a slow renderer instead of just dropping frames.
 - Distance fog was configured in world units without accounting for the camera
