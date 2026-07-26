@@ -101,6 +101,14 @@ export interface SluiceEnt {
   passable: boolean;
 }
 
+/** A radial attractor, difficulty-scaled at construction time. */
+export interface WellEnt {
+  x: number;
+  y: number;
+  strength: number;
+  radius: number;
+}
+
 export interface FieldEnt {
   kind: 'magnet' | 'fan';
   pos: Vec2;
@@ -142,6 +150,7 @@ export interface World {
   rods: RodEnt[];
   sluices: SluiceEnt[];
   fields: FieldEnt[];
+  wells: WellEnt[];
   bullets: Bullet[];
   keysHeld: Set<KeyColor>;
   /** Seconds of simulation elapsed in this level attempt. */
@@ -149,6 +158,19 @@ export interface World {
   timeLimit: number;
   fuelMax: number;
   gravity: number;
+  /** Speed cap for this run: SHIP.maxSpeed scaled by the difficulty tier. */
+  maxSpeed: number;
+  /** Engine power for this run, before the cargo mass penalty. */
+  thrust: number;
+  /**
+   * Fuel per second at full throttle.
+   *
+   * Scaled by the same factor as thrust, so fuel buys a fixed amount of *speed
+   * change* rather than a fixed amount of *time*. Without this a low-thrust
+   * tier silently pays ~1.4x the fuel for the same manoeuvre, which made the
+   * gentlest difficulty the most fuel-starved one.
+   */
+  fuelBurn: number;
   flow: number;
   multiplier: number;
   score: number;
@@ -307,12 +329,19 @@ export function createWorld(level: Level, diff: Difficulty, lives?: number): Wor
     rods,
     sluices,
     fields,
+    // Wells are an environmental force the engine has to overcome, so they are
+    // scaled by thrust, not left absolute. Unscaled, the finale's well (22)
+    // exceeded Rookie's thrust (18.2) and the ship could not climb out at all.
+    wells: level.wells.map((w) => ({ ...w, strength: w.strength * diff.thrustScale })),
     bullets: [],
     keysHeld: new Set(),
     time: 0,
     timeLimit: level.par * diff.timeScale,
     fuelMax,
     gravity: level.gravity * diff.gravityScale,
+    maxSpeed: SHIP.maxSpeed * diff.speedScale,
+    thrust: SHIP.thrust * diff.thrustScale,
+    fuelBurn: SHIP.fuelBurn * diff.thrustScale,
     flow: 0,
     multiplier: 1,
     score: 0,
@@ -469,7 +498,7 @@ export function environmentAccel(w: World, p: Vec2, out: Vec2) {
   out.x = 0;
   out.y = -g;
 
-  for (const well of w.level.wells) {
+  for (const well of w.wells) {
     const dx = well.x - p.x;
     const dy = well.y - p.y;
     const d = Math.hypot(dx, dy);
@@ -515,7 +544,7 @@ function killShip(w: World, _reason: string) {
   ship.stateTime = 0;
   ship.thrusting = false;
   w.stats.deaths++;
-  w.shake = Math.min(1.6, 0.6 + speed / SHIP.maxSpeed);
+  w.shake = Math.min(1.6, 0.6 + speed / w.maxSpeed);
   w.flow = 0;
   w.status = 'dying';
   emit(w, { type: 'crash', x: ship.pos.x, y: ship.pos.y, value: speed });
@@ -622,7 +651,7 @@ export function stepWorld(w: World, input: InputFrame, dt: number): void {
 
   // --- Thrust and fuel -----------------------------------------------------
   const load = ship.carrying.length;
-  const thrustPower = SHIP.thrust * (1 - load * SHIP.cargoThrustPenalty);
+  const thrustPower = shipThrust(w, load);
   const throttle = Math.max(0, Math.min(1, input.throttle));
   const wantThrust = throttle > THROTTLE_DEADZONE && ship.fuel > 0;
   ship.thrusting = false;
@@ -646,7 +675,7 @@ export function stepWorld(w: World, input: InputFrame, dt: number): void {
     // Fuel follows the throttle, so feathering the engine is genuinely cheaper
     // than pumping a key on and off.
     const before = ship.fuel;
-    ship.fuel = Math.max(0, ship.fuel - SHIP.fuelBurn * throttle * dt);
+    ship.fuel = Math.max(0, ship.fuel - w.fuelBurn * throttle * dt);
     w.stats.fuelUsed += before - ship.fuel;
     if (ship.fuel === 0 && before > 0) emit(w, { type: 'out-of-fuel', x: ship.pos.x, y: ship.pos.y });
   }
@@ -658,11 +687,11 @@ export function stepWorld(w: World, input: InputFrame, dt: number): void {
   ship.vel.x *= damp;
   ship.vel.y *= damp;
   let speed = Math.hypot(ship.vel.x, ship.vel.y);
-  if (speed > SHIP.maxSpeed) {
-    const s = SHIP.maxSpeed / speed;
+  if (speed > w.maxSpeed) {
+    const s = w.maxSpeed / speed;
     ship.vel.x *= s;
     ship.vel.y *= s;
-    speed = SHIP.maxSpeed;
+    speed = w.maxSpeed;
   }
 
   moveAndCollide(w, dt, speed);
@@ -770,12 +799,15 @@ function moveAndCollide(w: World, dt: number, speed: number) {
 function updateFlow(w: World, dt: number, speed: number) {
   const ship = w.ship;
   const dist = wallProximity(w.level, ship.pos.x, ship.pos.y, SHIP.radius, FLOW.range);
-  const grazing = dist < FLOW.range && speed > FLOW.minSpeed;
+  // The grazing threshold scales with the hull's own top speed, or a slow
+  // Rookie ship could never reach it and the flow meter would be dead weight.
+  const flowMin = FLOW.minSpeed * (w.maxSpeed / SHIP.maxSpeed);
+  const grazing = dist < FLOW.range && speed > flowMin;
 
   if (grazing) {
     // Closest = best, but the meter should not spike from a single frame.
     const closeness = 1 - dist / FLOW.range;
-    const speedFactor = Math.min(1, (speed - FLOW.minSpeed) / (SHIP.maxSpeed - FLOW.minSpeed) + 0.35);
+    const speedFactor = Math.min(1, (speed - flowMin) / Math.max(1, w.maxSpeed - flowMin) + 0.35);
     w.flow = Math.min(FLOW.max, w.flow + FLOW.gain * closeness * speedFactor * dt);
     w.stats.grazeTime += dt;
     if (w.flow >= FLOW.max && w.stats.peakFlow < FLOW.max) {
@@ -868,6 +900,11 @@ function finishLevel(w: World) {
 // ---------------------------------------------------------------------------
 // Queries used by the presentation layer
 // ---------------------------------------------------------------------------
+
+/** Engine power available right now, after the difficulty tier and cargo mass. */
+export function shipThrust(w: World, load = w.ship.carrying.length): number {
+  return w.thrust * (1 - load * SHIP.cargoThrustPenalty);
+}
 
 export function cargoWaiting(w: World): number {
   return w.cargo.filter((c) => c.state === 'waiting').length;

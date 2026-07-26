@@ -11,7 +11,7 @@
 import { FIXED_DT, SHIP } from '../src/sim/config';
 import { tileAt, type Level } from '../src/sim/level';
 import { Tile, type InputFrame } from '../src/sim/types';
-import { environmentAccel, stepWorld, type World } from '../src/sim/world';
+import { environmentAccel, shipThrust, stepWorld, type World } from '../src/sim/world';
 
 interface Field {
   dist: Float32Array;
@@ -577,7 +577,7 @@ export function flyLevel(
     // a chattering target heading keeps the gate shut and the ship just hangs
     // there with the engine off until it falls into something.
     const cosErr = Math.cos(err);
-    const thrustPower = SHIP.thrust * (1 - ship.carrying.length * 0.07);
+    const thrustPower = shipThrust(world);
     let thrust = false;
     if (cosErr > 0.25 && ship.fuel > 0) {
       pwm += Math.max(0, Math.min(1, mag / (thrustPower * cosErr)));

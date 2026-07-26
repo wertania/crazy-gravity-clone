@@ -174,14 +174,19 @@ export class Screens {
   difficulty(current: DifficultyId, pick: (id: DifficultyId) => void, back: () => void) {
     const host = this.panel(`
       <h2>DIFFICULTY</h2>
-      <p>Every tier plays all twenty caves. What changes is the margin for error — and the score you earn for using it.</p>
+      <p>Every tier plays all twenty caves. What changes is the margin for error — and the score you earn for using it.
+         Speed and thrust are the big ones: a slower hull cannot build up a velocity it has no room to shed.</p>
     `);
     this.mountMenu(
       host,
       [
         ...DIFFICULTIES.map((d) => ({
           label: `${d.name}${d.id === current ? '  ·  current' : ''}`,
-          hint: `${d.lives} hull${d.lives > 1 ? 's' : ''} · ${d.scoreScale.toFixed(2)}× score`,
+          hint:
+            `${d.lives} hull${d.lives > 1 ? 's' : ''} · ` +
+            `${Math.round(d.speedScale * 100)}% speed · ` +
+            `${Math.round(d.thrustScale * 100)}% thrust · ` +
+            `${d.scoreScale.toFixed(2)}× score`,
           action: () => pick(d.id),
         })),
         { label: 'Back', action: back },

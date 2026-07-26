@@ -506,18 +506,20 @@ kbd {
 
 /* --- On-screen touch controls --------------------------------------------- */
 
+/* The root owns the lower part of the screen, but only the two zones take
+   pointers. The zones are deliberately far larger than the sliders drawn inside
+   them: a thumb that lands beside a 52-pixel track and swipes up must still be
+   understood, which is exactly what the first version got wrong. */
 .touch {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
+  height: clamp(150px, 46vh, 340px);
   z-index: 6;
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 2vw;
-  padding: clamp(10px, 2.4vmin, 26px);
-  padding-bottom: max(clamp(10px, 2.4vmin, 26px), env(safe-area-inset-bottom));
+  align-items: stretch;
+  pointer-events: none;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -526,6 +528,24 @@ kbd {
 
 .touch[hidden] {
   display: none;
+}
+
+.touch-zone {
+  flex: 1 1 40%;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: auto;
+  touch-action: none;
+  padding: clamp(10px, 2.4vmin, 26px);
+  padding-bottom: max(clamp(10px, 2.4vmin, 26px), env(safe-area-inset-bottom));
+}
+
+.touch-zone-left {
+  justify-content: flex-start;
+}
+
+.touch-zone-right {
+  justify-content: flex-end;
 }
 
 /* With sliders mounted, the whole lower half of the screen belongs to thumbs.
@@ -551,24 +571,36 @@ body.has-touch-controls .toast {
   flex-direction: column;
   align-items: center;
   gap: 0.5em;
+  pointer-events: none;
+  opacity: 0.72;
+  transition: opacity 120ms ease;
+}
+
+.touch-zone.engaged .touch-steer,
+.touch-zone.engaged .touch-throttle {
+  opacity: 1;
 }
 
 .touch-label {
   font-size: clamp(9px, 1.3vmin, 12px);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   color: var(--dim);
+  white-space: nowrap;
+}
+
+.touch-zone.engaged .touch-label {
+  color: var(--accent);
 }
 
 /* Horizontal steering track */
 .touch-track {
   position: relative;
   width: clamp(150px, 34vw, 320px);
-  height: clamp(52px, 11vmin, 76px);
+  height: clamp(54px, 11vmin, 78px);
   border: 1px solid var(--edge);
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(79, 214, 255, 0.09), rgba(8, 12, 20, 0.72));
   backdrop-filter: blur(2px);
-  touch-action: none;
 }
 
 .touch-centre {
@@ -583,14 +615,13 @@ body.has-touch-controls .toast {
 /* Vertical throttle track */
 .touch-vtrack {
   position: relative;
-  width: clamp(52px, 11vmin, 76px);
-  height: clamp(150px, 30vh, 300px);
+  width: clamp(54px, 11vmin, 78px);
+  height: clamp(110px, 26vh, 260px);
   border: 1px solid var(--edge);
   border-radius: 999px;
   background: linear-gradient(0deg, rgba(125, 227, 168, 0.1), rgba(8, 12, 20, 0.72));
   backdrop-filter: blur(2px);
   overflow: hidden;
-  touch-action: none;
 }
 
 .touch-fill {
@@ -605,12 +636,16 @@ body.has-touch-controls .toast {
 
 .touch-knob {
   position: absolute;
-  width: clamp(40px, 8.4vmin, 58px);
-  height: clamp(40px, 8.4vmin, 58px);
+  width: clamp(42px, 8.6vmin, 60px);
+  height: clamp(42px, 8.6vmin, 60px);
   border-radius: 50%;
   background: radial-gradient(circle at 38% 32%, #eaf6ff, #7fb6d6 62%, #33566d);
   box-shadow: 0 0 14px rgba(79, 214, 255, 0.45), inset 0 -2px 6px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+}
+
+.touch-zone.engaged .touch-knob {
+  box-shadow: 0 0 22px rgba(79, 214, 255, 0.85), inset 0 -2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .touch-track > .touch-knob {
@@ -626,15 +661,18 @@ body.has-touch-controls .toast {
 }
 
 .touch-mid {
+  flex: 0 0 auto;
+  align-self: flex-end;
   display: flex;
   flex-direction: column;
   gap: 0.6em;
-  padding-bottom: 0.4em;
+  pointer-events: auto;
+  padding: 0 0.4em clamp(12px, 3vmin, 30px);
 }
 
 .touch-btn {
-  min-width: clamp(56px, 12vmin, 84px);
-  min-height: clamp(42px, 8vmin, 58px);
+  min-width: clamp(58px, 12vmin, 86px);
+  min-height: clamp(44px, 8vmin, 60px);
   border: 1px solid var(--edge);
   border-radius: 12px;
   background: rgba(8, 12, 20, 0.72);
@@ -652,13 +690,13 @@ body.has-touch-controls .toast {
   color: var(--accent);
 }
 
-/* Portrait phones: the sliders need the width more than the label does. */
+/* Portrait phones: the sliders need the width more than the labels do. */
 @media (orientation: portrait) and (max-width: 560px) {
   .touch-track {
-    width: clamp(120px, 40vw, 240px);
+    width: clamp(130px, 40vw, 240px);
   }
   .touch-vtrack {
-    height: clamp(110px, 20vh, 200px);
+    height: clamp(120px, 20vh, 200px);
   }
   .touch-label {
     display: none;
@@ -666,13 +704,22 @@ body.has-touch-controls .toast {
   .touch-mid {
     flex-direction: row;
     align-self: center;
+    padding-bottom: clamp(16px, 5vmin, 40px);
   }
 }
 
-/* Short landscape phones: keep the throttle from eating the whole height. */
-@media (orientation: landscape) and (max-height: 460px) {
+/* Short landscape phones: a full-power pull has to stay a comfortable thumb
+   stroke, and the track length *is* that stroke. */
+@media (orientation: landscape) and (max-height: 480px) {
+  .touch {
+    height: 62vh;
+  }
   .touch-vtrack {
-    height: clamp(96px, 34vh, 160px);
+    height: clamp(92px, 30vh, 132px);
+  }
+  .touch-track {
+    width: clamp(140px, 28vw, 260px);
+    height: clamp(48px, 13vh, 64px);
   }
 }
 
@@ -681,7 +728,9 @@ body.has-touch-controls .toast {
 .rotate-hint {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--touch-h, 0px) + 1.2em);
+  /* Under the HUD, not above the paddles: the gesture zones now own most of the
+     lower screen, which would leave the hint floating mid-playfield. */
+  top: clamp(62px, 11vh, 110px);
   transform: translateX(-50%);
   z-index: 7;
   padding: 0.45em 1em;
