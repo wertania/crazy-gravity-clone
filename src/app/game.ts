@@ -18,7 +18,7 @@ import { buildLevel } from '../sim/level';
 import { LEVELS, levelByPassword } from '../sim/levels';
 import { createWorld, medalFor, stepWorld, type World } from '../sim/world';
 import type { SimEvent } from '../sim/types';
-import { Stage } from '../render/scene';
+import { BLOOM_BASE, Stage } from '../render/scene';
 import { Terrain } from '../render/terrain';
 import { Props, ShipView, KEY_HEX } from '../render/actors';
 import type { KeyColor } from '../sim/types';
@@ -557,7 +557,7 @@ export class Game {
       this.stage.aim(x, y, { w: world.level.width, h: world.level.height }, world.shake, this.zoom, dt);
       this.hud.update(world, dt);
       this.audio.engine(world.ship.thrusting ? world.ship.throttle : 0, speed / world.maxSpeed);
-      this.stage.setBloom(0.42 + (world.flow / 100) * 0.38);
+      this.stage.setBloom(BLOOM_BASE + (world.flow / 100) * 0.22);
     } else {
       // Menus: drift slowly across the cave so the backdrop stays alive.
       this.cineT += dt * 0.06;

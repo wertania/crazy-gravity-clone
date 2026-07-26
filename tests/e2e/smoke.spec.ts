@@ -447,10 +447,23 @@ test('the pace setting really slows simulated time down', async ({ page }) => {
   await bootWithoutSave(page);
   await launchLevelOne(page);
 
+  // Pin the cheapest tier before measuring. Otherwise the adaptive quality
+  // system steps down *between* the two samples, the frame cost changes under
+  // the measurement, and the pace difference disappears into the frame-time
+  // clamp - which is a property of the renderer, not of the pace setting.
+  const pinFastest = () =>
+    page.evaluate(() =>
+      (
+        window as never as { game: { stage: { lockQuality(l: number): void } } }
+      ).game.stage.lockQuality(0),
+    );
+
   const measure = async () => {
+    await pinFastest();
+    await page.waitForTimeout(400);
     const t0 = await simTime(page);
     const w0 = Date.now();
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(2000);
     const t1 = await simTime(page);
     return (t1 - t0) / ((Date.now() - w0) / 1000);
   };
@@ -470,9 +483,9 @@ test('the pace setting really slows simulated time down', async ({ page }) => {
 
   const brisk = await measure();
 
-  // Relative comparison: absolute rates depend on the software renderer, but
-  // Brisk must clearly out-pace Gentle.
-  expect(brisk).toBeGreaterThan(gentle * 1.12);
+  // Relative comparison: absolute rates depend on the renderer, but Brisk
+  // (115%) must clearly out-pace Gentle (85%) - nominally 1.35x.
+  expect(brisk).toBeGreaterThan(gentle * 1.15);
 });
 
 // ---------------------------------------------------------------------------
@@ -510,4 +523,93 @@ test('reports a failed download instead of hanging on black', async ({ page }) =
 
   await expect(page.locator('#boot-status')).toHaveText(/nicht geladen werden/);
   await expect(page.locator('#boot-status')).toHaveClass(/error/);
+});
+
+// ---------------------------------------------------------------------------
+// Helligkeit
+// ---------------------------------------------------------------------------
+
+/**
+ * Fraction of the frame that is essentially blown out to white.
+ *
+ * Screenshot the page, hand the PNG back to the browser, decode it onto a 2D
+ * canvas and count near-white pixels. Roundabout, but it needs no image
+ * library and it measures the thing that actually went wrong: the ship used to
+ * sit inside a white ball big enough that you could not see the ship.
+ */
+async function blownOutFraction(page: Page): Promise<number> {
+  const shot = (await page.screenshot()).toString('base64');
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let blown = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const lum = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255;
+      if (lum > 0.9) blown++;
+    }
+    return blown / (c.width * c.height);
+  }, shot);
+}
+
+test('the ship never blows the screen out, even with bloom on', async ({ page }) => {
+  await bootWithoutSave(page);
+  await launchLevelOne(page);
+
+  // The adaptive quality system switches bloom off on a software renderer, so
+  // without pinning the tier this would test the wrong thing entirely - which
+  // is exactly how the over-bright build shipped.
+  await page.evaluate(() =>
+    (
+      window as never as { game: { stage: { lockQuality(l: number): void } } }
+    ).game.stage.lockQuality(2),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as never as { game: { stage: { qualityLevel: number } } }).game.stage.qualityLevel,
+      ),
+    )
+    .toBe(2);
+  await page.waitForTimeout(500);
+
+  // Idle, and under full thrust.
+  expect(await blownOutFraction(page)).toBeLessThan(0.0012);
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(700);
+  expect(await blownOutFraction(page)).toBeLessThan(0.0012);
+  await page.keyboard.up('KeyW');
+
+  // And the brightest state the ship can reach: full flow, engine lit. The hull
+  // is parked so it cannot fly into the ceiling mid-measurement.
+  await page.evaluate(() => {
+    const w = (window as never as { game: { world: Record<string, never> } }).game.world as unknown as {
+      flow: number;
+      ship: { pos: { x: number; y: number }; vel: { x: number; y: number } };
+    };
+    const hold = { x: w.ship.pos.x, y: w.ship.pos.y };
+    const pin = () => {
+      w.flow = 100;
+      w.ship.pos.x = hold.x;
+      w.ship.pos.y = hold.y;
+      w.ship.vel.x = 0;
+      w.ship.vel.y = 0;
+      requestAnimationFrame(pin);
+    };
+    pin();
+  });
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(800);
+  const worst = await blownOutFraction(page);
+  await page.keyboard.up('KeyW');
+
+  // Measured ~0.03% after the fix; the pre-fix build sat at ~0.28%, so this
+  // bound has room for honest variation and still catches a real regression.
+  expect(worst).toBeLessThan(0.0012);
 });
