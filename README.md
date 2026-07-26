@@ -7,6 +7,23 @@ which itself descends from *Thrust* (1986) and Atari's *Gravitar*.
 Rotate the ship, burn the engine along its nose, fight a constant downward pull,
 pick up freight and put it down softly on the base pad. The rock is always fatal.
 
+![Cave 01, First Light](shots/level01.png)
+
+<table>
+<tr>
+<td><img src="shots/level05-cannons.png" alt="Cave 05, Crossfire: cannons firing on a fixed beat" /></td>
+<td><img src="shots/level07-blowers.png" alt="Cave 07, Updraft: blower shafts" /></td>
+</tr>
+<tr>
+<td><img src="shots/level13-unlit.png" alt="Cave 13, Glow-worm: an unlit cave lit only by the ship's lamp" /></td>
+<td><img src="shots/level20-finale.png" alt="Cave 20, Eventide" /></td>
+</tr>
+</table>
+
+> Screenshots are captured from the built bundle in a real Chromium, but under
+> SwiftShader software rasterisation — the quality system therefore steps bloom
+> off before the shot is taken. On hardware the emissive surfaces glow.
+
 > **On the name and the content.** Game mechanics are not copyrightable, but
 > names, art, sound and level layouts are. Nothing here is taken from the
 > original: the title, the twenty caves, the passwords, the ship, every sound
