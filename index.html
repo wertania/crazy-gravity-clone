@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Gravity Hauler</title>
+    <meta
+      name="description"
+      content="A gravity cave flyer: rotate, thrust, haul freight home without touching the walls."
+    />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%9A%80</text></svg>" />
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+
+    <!-- In-flight HUD -->
+    <div id="hud" class="hud" hidden>
+      <div class="hud-row hud-top">
+        <div class="hud-cluster">
+          <div class="gauge" id="g-fuel">
+            <span class="gauge-label">FUEL</span>
+            <div class="bar"><i></i></div>
+            <span class="gauge-value">100</span>
+          </div>
+          <div class="gauge" id="g-flow">
+            <span class="gauge-label">FLOW</span>
+            <div class="bar flow"><i></i></div>
+            <span class="gauge-value">1.0&times;</span>
+          </div>
+        </div>
+
+        <div class="hud-cluster hud-centre">
+          <div class="level-tag"><span id="h-levelno">01</span> <span id="h-levelname">—</span></div>
+          <div class="clock"><span id="h-time">0:00</span><span class="par">/ <span id="h-par">0:00</span></span></div>
+        </div>
+
+        <div class="hud-cluster hud-right">
+          <div class="stat"><span class="stat-label">SCORE</span><span id="h-score">0</span></div>
+          <div class="stat"><span class="stat-label">HULLS</span><span id="h-lives">—</span></div>
+        </div>
+      </div>
+
+      <div class="hud-row hud-bottom">
+        <div class="cargo-strip">
+          <span class="stat-label">FREIGHT</span>
+          <div id="h-cargo" class="pips"></div>
+          <span class="carry" id="h-carry"></span>
+        </div>
+        <div class="keys-strip" id="h-keys"></div>
+        <div class="landing" id="h-landing"><span class="dot"></span><span class="txt">LANDING</span></div>
+      </div>
+
+      <div id="toast" class="toast"></div>
+    </div>
+
+    <!-- Full-screen menus and cards -->
+    <div id="overlay" class="overlay" hidden></div>
+
+    <noscript>
+      <div class="overlay"><div class="panel"><h1>Gravity Hauler</h1><p>This game needs JavaScript and WebGL.</p></div></div>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

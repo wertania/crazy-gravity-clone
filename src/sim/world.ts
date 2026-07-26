@@ -118,6 +118,9 @@ export type WorldStatus = 'playing' | 'cleared' | 'dying' | 'gameover';
 
 export interface RunStats {
   deaths: number;
+  /** Points banked during the run, split so the results card can itemise them. */
+  cargoPoints: number;
+  keyPoints: number;
   grazeTime: number;
   peakFlow: number;
   fuelUsed: number;
@@ -313,7 +316,16 @@ export function createWorld(level: Level, diff: Difficulty, lives?: number): Wor
     lives: lives ?? diff.lives,
     status: 'playing',
     events: [],
-    stats: { deaths: 0, grazeTime: 0, peakFlow: 0, fuelUsed: 0, distance: 0, perfectLandings: 0 },
+    stats: {
+      deaths: 0,
+      cargoPoints: 0,
+      keyPoints: 0,
+      grazeTime: 0,
+      peakFlow: 0,
+      fuelUsed: 0,
+      distance: 0,
+      perfectLandings: 0,
+    },
     shake: 0,
     landing: 'green',
     clearBreakdown: null,
@@ -672,7 +684,9 @@ function handleLandedTick(w: World, dt: number, wantThrust: boolean) {
       const c = w.cargo[id];
       c.state = 'delivered';
       c.pos = { x: ship.pos.x, y: ship.pos.y };
-      w.score += Math.round(SCORE.cargoDelivered * w.multiplier * w.diff.scoreScale);
+      const points = Math.round(SCORE.cargoDelivered * w.multiplier * w.diff.scoreScale);
+      w.score += points;
+      w.stats.cargoPoints += points;
       emit(w, { type: 'deliver', x: ship.pos.x, y: ship.pos.y, value: id });
     }
     ship.carrying = [];
@@ -784,7 +798,9 @@ function collectPickups(w: World) {
     if (Math.hypot(k.pos.x - ship.pos.x, k.pos.y - ship.pos.y) > PICKUP_RADIUS + SHIP.radius) continue;
     k.taken = true;
     w.keysHeld.add(k.color);
-    w.score += Math.round(SCORE.keyCollected * w.multiplier * w.diff.scoreScale);
+    const points = Math.round(SCORE.keyCollected * w.multiplier * w.diff.scoreScale);
+    w.score += points;
+    w.stats.keyPoints += points;
     emit(w, { type: 'key', x: k.pos.x, y: k.pos.y, color: k.color });
   }
   // Carried crates trail behind the hull for the renderer.
@@ -818,17 +834,21 @@ function checkTime(w: World) {
 
 function finishLevel(w: World) {
   const timeLeft = Math.max(0, w.timeLimit - w.time);
+  const scale = w.diff.scoreScale;
+  // Each row is scaled individually and then banked, so the itemised card adds
+  // up to the total exactly. Scaling the sum instead leaves the rows lying.
   const breakdown: ScoreBreakdown = {
-    cargo: 0,
-    keys: 0,
-    time: Math.round(timeLeft * SCORE.timeBonusPerSecond),
-    fuel: Math.round(w.ship.fuel * SCORE.fuelBonusPerUnit),
-    flawless: w.stats.deaths === 0 ? SCORE.flawlessBonus : 0,
-    flowBonus: Math.round(w.stats.grazeTime * 120),
+    // Freight and key points were banked as they happened, at whatever flow
+    // multiplier was live at the time; the card itemises them after the fact.
+    cargo: w.stats.cargoPoints,
+    keys: w.stats.keyPoints,
+    time: Math.round(timeLeft * SCORE.timeBonusPerSecond * scale),
+    fuel: Math.round(w.ship.fuel * SCORE.fuelBonusPerUnit * scale),
+    flawless: w.stats.deaths === 0 ? Math.round(SCORE.flawlessBonus * scale) : 0,
+    flowBonus: Math.round(w.stats.grazeTime * 120 * scale),
     total: 0,
   };
-  const extra = breakdown.time + breakdown.fuel + breakdown.flawless + breakdown.flowBonus;
-  w.score += Math.round(extra * w.diff.scoreScale);
+  w.score += breakdown.time + breakdown.fuel + breakdown.flawless + breakdown.flowBonus;
   breakdown.total = w.score;
   w.clearBreakdown = breakdown;
   w.status = 'cleared';

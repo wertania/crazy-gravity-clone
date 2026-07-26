@@ -544,7 +544,6 @@ export function flyLevel(
     const loadScale = 1 + ship.carrying.length * 0.05;
     const envX = env.x;
     const envY = env.y * loadScale;
-    const gEff = Math.hypot(envX, envY) || world.gravity;
 
     // Low-pass the demand. Without it, small discontinuities in the route field
     // flip the target heading between steps, the alignment gate never opens and

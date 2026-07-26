@@ -96,6 +96,18 @@ describe('mechanics exercised end to end', () => {
     expect(['gold', 'silver', 'bronze']).toContain(medalFor(world));
   });
 
+  it('the results breakdown itemises the whole score', () => {
+    // Freight and key points are banked during the run at whatever flow
+    // multiplier was live at the time, so they have to be tracked separately;
+    // if they are not, the card silently shows rows that do not add up.
+    const world = levelWorld(16, { hazards: false });
+    flyLevel(world, { maxSeconds: 900 });
+    const b = world.clearBreakdown!;
+    expect(b.cargo).toBeGreaterThan(0);
+    expect(b.keys).toBeGreaterThan(0);
+    expect(b.cargo + b.keys + b.time + b.fuel + b.flawless + b.flowBonus).toBe(b.total);
+  });
+
   it('is deterministic: identical runs produce identical results', () => {
     const a = levelWorld(2, { hazards: true });
     const b = levelWorld(2, { hazards: true });
