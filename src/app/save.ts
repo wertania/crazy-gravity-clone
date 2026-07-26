@@ -6,7 +6,12 @@
  * write anything down.
  */
 
-import type { DifficultyId } from '../sim/config';
+import {
+  DEFAULT_DIFFICULTY,
+  DEFAULT_GAME_SPEED,
+  type DifficultyId,
+  type GameSpeedId,
+} from '../sim/config';
 
 const KEY = 'gravity-hauler.save.v1';
 
@@ -17,8 +22,14 @@ export interface LevelRecord {
   cleared: boolean;
 }
 
+export type TouchMode = 'auto' | 'on' | 'off';
+
 export interface SaveData {
   difficulty: DifficultyId;
+  /** Overall pace multiplier, see GAME_SPEEDS. */
+  gameSpeed: GameSpeedId;
+  /** On-screen flight controls: follow the device, or force them either way. */
+  touch: TouchMode;
   /** Highest level index unlocked, 1-based. */
   unlocked: number;
   totalScore: number;
@@ -29,7 +40,9 @@ export interface SaveData {
 }
 
 const DEFAULT: SaveData = {
-  difficulty: 'pilot',
+  difficulty: DEFAULT_DIFFICULTY,
+  gameSpeed: DEFAULT_GAME_SPEED,
+  touch: 'auto',
   unlocked: 1,
   totalScore: 0,
   levels: {},

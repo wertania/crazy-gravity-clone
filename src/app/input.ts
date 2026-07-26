@@ -140,13 +140,20 @@ export class Input {
     if (edge(2)) this.emit('restart');
   }
 
+  /**
+   * An extra analog source merged into every frame, used by the on-screen
+   * touch controls. Null when they are not mounted.
+   */
+  touch: (() => { turn: number; throttle: number; levelOut: boolean }) | null = null;
+
   /** The flight controls for this frame. */
   frame(): InputFrame {
     let turn = 0;
     if (this.down.has('ArrowLeft') || this.down.has('KeyA') || this.down.has('KeyJ')) turn += 1;
     if (this.down.has('ArrowRight') || this.down.has('KeyD') || this.down.has('KeyL')) turn -= 1;
-    let thrust = false;
-    for (const k of THRUST) if (this.down.has(k)) thrust = true;
+    // A key is always full power; analog sources can ask for less.
+    let throttle = 0;
+    for (const k of THRUST) if (this.down.has(k)) throttle = 1;
     let levelOut = false;
     for (const k of LEVEL_OUT) if (this.down.has(k)) levelOut = true;
 
@@ -157,11 +164,23 @@ export class Input {
       if (pad.buttons[14]?.pressed) turn += 1;
       if (pad.buttons[15]?.pressed) turn -= 1;
       const trigger = pad.buttons[7]?.value ?? 0;
-      if (pad.buttons[0]?.pressed || trigger > 0.25) thrust = true;
+      if (pad.buttons[0]?.pressed) throttle = 1;
+      else if (trigger > 0.08) throttle = Math.max(throttle, trigger);
       if (pad.buttons[3]?.pressed) levelOut = true;
     }
 
-    return { turn: Math.max(-1, Math.min(1, turn)), thrust, levelOut };
+    if (this.touch) {
+      const t = this.touch();
+      if (Math.abs(t.turn) > Math.abs(turn)) turn = t.turn;
+      throttle = Math.max(throttle, t.throttle);
+      levelOut = levelOut || t.levelOut;
+    }
+
+    return {
+      turn: Math.max(-1, Math.min(1, turn)),
+      throttle: Math.max(0, Math.min(1, throttle)),
+      levelOut,
+    };
   }
 
   clear() {

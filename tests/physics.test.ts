@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { FIXED_DT, SHIP, difficultyById } from '../src/sim/config';
 import { buildLevel, type LevelSpec } from '../src/sim/level';
 import { createWorld, stepWorld, type World } from '../src/sim/world';
-import { NO_INPUT, Tile, type InputFrame } from '../src/sim/types';
+import { NO_INPUT, THROTTLE_DEADZONE, Tile, type InputFrame } from '../src/sim/types';
 import { circleVsGrid, subStepsFor, wallProximity } from '../src/sim/collision';
 
 /** A wide, empty, flat-floored box with a base pad - a physics bench, not a level. */
@@ -52,10 +52,53 @@ describe('integrator', () => {
       acc += duty;
       const on = acc >= 1;
       if (on) acc -= 1;
-      stepWorld(w, { turn: 0, thrust: on, levelOut: false }, FIXED_DT);
+      stepWorld(w, { turn: 0, throttle: on ? 1 : 0, levelOut: false }, FIXED_DT);
     }
     expect(Math.abs(w.ship.pos.y - 28)).toBeLessThan(1.5);
     expect(w.ship.state).toBe('flying');
+  });
+
+  it('scales thrust with the throttle', () => {
+    const accelAt = (throttle: number) => {
+      const w = bench();
+      w.ship.vel = { x: 0, y: 0 };
+      stepWorld(w, { turn: 0, throttle, levelOut: false }, FIXED_DT);
+      // Subtract the gravity component to isolate the engine.
+      return w.ship.vel.y / FIXED_DT + w.gravity;
+    };
+    const full = accelAt(1);
+    expect(accelAt(0.5) / full).toBeCloseTo(0.5, 1);
+    expect(accelAt(0.25) / full).toBeCloseTo(0.25, 1);
+  });
+
+  it('holds a steady hover on a constant analog throttle', () => {
+    // The whole point of analog throttle: no key-pumping needed to hover, which
+    // is what makes a touchscreen slider viable.
+    const w = bench();
+    const hover = w.gravity / SHIP.thrust;
+    run(w, 6, { turn: 0, throttle: hover, levelOut: false });
+    expect(Math.abs(w.ship.pos.y - 28)).toBeLessThan(0.6);
+    expect(w.ship.state).toBe('flying');
+  });
+
+  it('burns fuel in proportion to the throttle', () => {
+    // Short burn: at full power the bench ceiling is only a second away, and a
+    // crash would refill the tank and invalidate the comparison.
+    const soft = bench();
+    run(soft, 0.5, { turn: 0, throttle: 0.4, levelOut: false });
+    const full = bench();
+    run(full, 0.5, { turn: 0, throttle: 1, levelOut: false });
+    expect(soft.stats.deaths + full.stats.deaths).toBe(0);
+    const softBurn = soft.fuelMax - soft.ship.fuel;
+    const fullBurn = full.fuelMax - full.ship.fuel;
+    expect(softBurn / fullBurn).toBeCloseTo(0.4, 1);
+  });
+
+  it('treats a resting slider as engine off', () => {
+    const w = bench();
+    run(w, 0.5, { turn: 0, throttle: THROTTLE_DEADZONE, levelOut: false });
+    expect(w.ship.thrusting).toBe(false);
+    expect(w.ship.fuel).toBe(w.fuelMax);
   });
 
   it('never exceeds the speed cap', () => {
@@ -70,7 +113,7 @@ describe('integrator', () => {
   it('is frame-rate independent at the fixed step', () => {
     const a = bench();
     const b = bench();
-    const input: InputFrame = { turn: 1, thrust: true, levelOut: false };
+    const input: InputFrame = { turn: 1, throttle: 1, levelOut: false };
     for (let i = 0; i < 200; i++) stepWorld(a, input, FIXED_DT);
     for (let i = 0; i < 200; i++) stepWorld(b, input, FIXED_DT);
     expect(a.ship.pos.x).toBeCloseTo(b.ship.pos.x, 10);
@@ -81,10 +124,10 @@ describe('integrator', () => {
   it('burns fuel only while thrusting and stops thrusting when dry', () => {
     const w = bench();
     w.ship.fuel = 1;
-    run(w, 0.5, { turn: 0, thrust: true, levelOut: false });
+    run(w, 0.5, { turn: 0, throttle: 1, levelOut: false });
     expect(w.ship.fuel).toBe(0);
     const before = { ...w.ship.vel };
-    stepWorld(w, { turn: 0, thrust: true, levelOut: false }, FIXED_DT);
+    stepWorld(w, { turn: 0, throttle: 1, levelOut: false }, FIXED_DT);
     // With no fuel the only acceleration left is gravity: strictly downward.
     expect(w.ship.vel.y).toBeLessThan(before.y);
     expect(w.ship.thrusting).toBe(false);
@@ -93,7 +136,7 @@ describe('integrator', () => {
   it('auto-level assist returns the nose to vertical', () => {
     const w = bench();
     w.ship.angle = 1.2;
-    run(w, 2.0, { turn: 0, thrust: false, levelOut: true });
+    run(w, 2.0, { turn: 0, throttle: 0, levelOut: true });
     expect(Math.abs(w.ship.angle)).toBeLessThan(0.12);
   });
 });

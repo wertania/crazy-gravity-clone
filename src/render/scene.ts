@@ -16,6 +16,13 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /** Height of the visible playfield in tiles. Widescreen shows more sideways. */
 export const VIEW_TILES_Y = 27;
+/**
+ * Never frame less than this many tiles horizontally. A portrait phone cannot
+ * honour the wide figure without zooming out far enough to shrink the ship to a
+ * speck, so narrow aspects get a lower bar and accept a tighter view.
+ */
+export const MIN_TILES_X = 26;
+export const MIN_TILES_X_NARROW = 18;
 /** Z of the gameplay plane. Wall tops sit here; the cave floor is below. */
 export const PLANE_Z = 0;
 export const WALL_DEPTH = 1.7;
@@ -72,7 +79,7 @@ export class Stage {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.62, 0.62, 0.72);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.6, 0.85);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
 
@@ -98,14 +105,26 @@ export class Stage {
     this.camera.updateProjectionMatrix();
   };
 
-  /** Distance that fits VIEW_TILES_Y vertically, clamped so tall thin windows stay sane. */
-  private cameraDistance(zoom: number): number {
+  /**
+   * Camera distance for the current window and level.
+   *
+   * Three competing demands, resolved in order:
+   *  1. show VIEW_TILES_Y tiles vertically;
+   *  2. never show less than MIN_TILES_X horizontally, so a narrow window still
+   *     lets you see what you are flying into;
+   *  3. never frame more than the level actually contains, or the player gets
+   *     black bands past the rock border - which is what a portrait phone hit.
+   */
+  private cameraDistance(zoom: number, bounds: { w: number; h: number }): number {
     const fovRad = (this.camera.fov * Math.PI) / 180;
-    const wanted = VIEW_TILES_Y * zoom;
-    const byHeight = wanted / 2 / Math.tan(fovRad / 2);
-    // On very narrow windows, back off so at least 30 tiles are visible across.
-    const minHorizontal = 30 / 2 / Math.tan((fovRad / 2) * this.camera.aspect);
-    return Math.max(byHeight, minHorizontal);
+    const aspect = this.camera.aspect;
+
+    const minX = aspect < 0.8 ? MIN_TILES_X_NARROW : MIN_TILES_X;
+    let halfH = (VIEW_TILES_Y * zoom) / 2;
+    halfH = Math.max(halfH, minX / 2 / aspect);
+    halfH = Math.min(halfH, Math.max(6, bounds.h / 2), Math.max(6, bounds.w / 2 / aspect));
+
+    return halfH / Math.tan(fovRad / 2);
   }
 
   /**
@@ -120,7 +139,7 @@ export class Stage {
     zoom: number,
     dt: number,
   ) {
-    const dist = this.cameraDistance(zoom);
+    const dist = this.cameraDistance(zoom, bounds);
     const fovRad = (this.camera.fov * Math.PI) / 180;
     const halfH = Math.tan(fovRad / 2) * dist;
     const halfW = halfH * this.camera.aspect;

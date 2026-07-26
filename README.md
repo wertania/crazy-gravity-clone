@@ -18,6 +18,9 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 <td><img src="shots/level13-unlit.png" alt="Cave 13, Glow-worm: an unlit cave lit only by the ship's lamp" /></td>
 <td><img src="shots/level20-finale.png" alt="Cave 20, Eventide" /></td>
 </tr>
+<tr>
+<td colspan="2"><img src="shots/phone-landscape.png" alt="On a phone in landscape: analog steering slider bottom left, throttle slider bottom right, HUD stacked at the top" /></td>
+</tr>
 </table>
 
 > Screenshots are captured from the built bundle in a real Chromium, but under
@@ -57,10 +60,30 @@ npm run preview        # serve the built bundle
 | <kbd>M</kbd> | mute |
 | <kbd>F3</kbd> | debug overlay |
 
-Gamepads work too — left stick or d-pad to turn, A or right trigger to thrust.
+Gamepads work too — left stick or d-pad to turn, A or the right trigger to
+thrust. The trigger is analog.
+
+**On a touchscreen** two on-screen sliders appear automatically: drag the left
+one to steer, the right one up for power. Both are analog and both spring back
+when you let go, and they work simultaneously as two thumbs. Force them on or
+off under Settings. Landscape gives you noticeably more cave to see; portrait is
+playable and the game says so once, rather than blocking the screen.
 
 Thrust only ever fires along the nose. To slow down you have to turn around
 first, and that turn is the entire game.
+
+### Making it easier
+
+Two independent dials, both under Settings and Difficulty:
+
+- **Pace** (default *Gentle*, 85%) scales how much simulated time passes per
+  real second. It is not a physics change — gravity, thrust and the speed cap
+  keep their exact relationships and the ship handles identically. You simply
+  get more real milliseconds to react in, which is the most effective and least
+  balance-breaking difficulty dial a reaction game has.
+- **Difficulty** (default *Rookie*) changes hulls, fuel, gravity, hazard tempo
+  and landing tolerance — and your score multiplier. It never changes the
+  level list.
 
 ---
 
@@ -100,6 +123,12 @@ Deliberately modern:
 - **Medals and a par time** instead of a hard timer — except on Veteran and
   Legend, where the clock does bite.
 - **Autosave**, so passwords are a convenience rather than homework.
+- **Analog throttle.** The original was strictly on/off and a key still gives
+  full power, but the touch slider and gamepad triggers are continuous, and
+  fuel burn follows the throttle. Feathering the engine to hold a hover is what
+  makes a touchscreen viable at all — hover sits at about a third of the slider
+  travel, leaving usable resolution on both sides of it.
+- **Adjustable pace**, defaulting below 1.
 
 ---
 
@@ -126,7 +155,7 @@ src/
     particles.ts  one pooled additive point cloud
     backdrop.ts   parallax layers
   ui/           DOM overlay
-    hud.ts, screens.ts
+    hud.ts, screens.ts, touch.ts
   audio/        procedural WebAudio, no sample files
 tests/          vitest unit + integration, playwright end-to-end
 ```
@@ -203,8 +232,9 @@ npm run e2e            # playwright: real browser, real WebGL
 
 **Unit** (`tests/physics.test.ts`) covers free fall against the analytic
 solution, hover equilibrium, the speed cap, frame-rate independence, fuel burn,
-the auto-level controller, contact normals, anti-tunneling, landing versus
-crashing at the tolerance boundary, difficulty-scaled tolerance, respawn
+throttle linearity, a steady hover on a constant analog throttle, the throttle
+dead zone, the auto-level controller, contact normals, anti-tunneling, landing
+versus crashing at the tolerance boundary, difficulty-scaled tolerance, respawn
 semantics, and the flow meter's earn and decay rules.
 
 **Level validation** (`tests/levels.test.ts`) bakes all twenty caves and asserts
@@ -233,6 +263,14 @@ system steps itself down. That last one runs on SwiftShader, a software
 rasteriser around two orders of magnitude slower than a GPU, so it asserts the
 property that matters (the simulation does not stall or run fast) rather than a
 frame count that would mean nothing on real hardware.
+
+It also drives the on-screen controls for real: the throttle slider is checked
+for analog response at half and full travel, for actually lifting the ship and
+draining fuel, and for springing shut on release; the steering slider for
+turning the hull and re-centring; and both together, one under a real
+touchscreen pointer and one under the mouse, to prove two thumbs do not fight
+each other. Plus: a fresh save starts on the easier defaults, and the Brisk pace
+really does advance simulated time faster than Gentle.
 
 ### Bugs these tests actually caught
 
@@ -265,6 +303,18 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The results card scaled the total by the difficulty multiplier but printed
   unscaled rows, and omitted freight and key points entirely — an itemised
   table whose rows did not add up to its own total.
+
+A second round, after the touch controls went in:
+
+- The camera framed more than the level contained on a portrait phone, so the
+  player got black bands past the rock border. The min-horizontal-span rule was
+  also written with a bogus `tan(fov/2 * aspect)` term that only looked right at
+  16:9.
+- Reserving space for the sliders by pushing the bottom HUD row up by their
+  height landed it in the middle of the playfield. Both HUD rows now stack at
+  the top when the sliders are mounted.
+- A guessed margin for the controls did not survive an orientation change, so
+  the widget height is measured and published as a CSS variable instead.
 
 Playtesting the autopilot runs also changed three level designs: level 7's
 blowers were producing a 2 g net updraft that pinned you to the ceiling, level

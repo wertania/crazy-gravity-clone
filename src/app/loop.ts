@@ -12,6 +12,13 @@ import { FIXED_DT, MAX_FRAME_TIME } from '../sim/config';
 const MAX_STEPS = Math.ceil(MAX_FRAME_TIME / FIXED_DT);
 
 export class FixedLoop {
+  /**
+   * Simulated seconds per real second. Below 1 the simulation runs at fixed dt
+   * as always - there are simply fewer steps per real second, so per-step
+   * determinism and the physics tuning are untouched.
+   */
+  timeScale = 1;
+
   private raf = 0;
   private last = 0;
   private accumulator = 0;
@@ -25,7 +32,7 @@ export class FixedLoop {
 
   constructor(
     private readonly step: (dt: number) => void,
-    private readonly draw: (alpha: number, frameDt: number) => void,
+    private readonly draw: (alpha: number, simDt: number, realDt: number) => void,
   ) {}
 
   start() {
@@ -41,7 +48,7 @@ export class FixedLoop {
       // simulation try to catch up forever (the "spiral of death").
       const frameTime = Math.min((now - this.last) / 1000, MAX_FRAME_TIME);
       this.last = now;
-      this.accumulator += frameTime;
+      this.accumulator += frameTime * this.timeScale;
 
       const t0 = performance.now();
       let steps = 0;
@@ -59,7 +66,10 @@ export class FixedLoop {
       }
       this.simLoad = performance.now() - t0;
 
-      this.draw(this.accumulator / FIXED_DT, frameTime);
+      // Views animate on simulated time so effects stay in step with the ship;
+      // the raw frame time goes along separately for the quality heuristic,
+      // which must measure real cost, not scaled cost.
+      this.draw(this.accumulator / FIXED_DT, frameTime * this.timeScale, frameTime);
 
       this.frames++;
       this.fpsClock += frameTime;

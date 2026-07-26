@@ -44,6 +44,7 @@ export class Hud {
   private readonly keys: HTMLElement;
   private readonly landing: HTMLElement;
   private readonly toast: HTMLElement;
+  private readonly rotate: HTMLElement;
 
   private last = {
     fuel: -1,
@@ -82,6 +83,19 @@ export class Hud {
     this.keys = q('h-keys');
     this.landing = q('h-landing');
     this.toast = q('toast');
+
+    // Portrait on a phone is playable but cramped; say so once, quietly, rather
+    // than blocking the screen with a rotate-your-device wall.
+    this.rotate = document.createElement('div');
+    this.rotate.className = 'rotate-hint';
+    this.rotate.hidden = true;
+    this.rotate.textContent = '↻ Landscape gives you more cave to see';
+    document.body.appendChild(this.rotate);
+  }
+
+  /** Show the portrait hint only while the on-screen controls are in use. */
+  setRotateHint(show: boolean) {
+    this.rotate.hidden = !show;
   }
 
   show(visible: boolean) {

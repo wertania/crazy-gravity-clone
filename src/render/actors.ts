@@ -90,7 +90,7 @@ export class ShipView {
     this.canopyMat = new THREE.MeshStandardMaterial({
       color: 0x0d2b3a,
       emissive: 0x59e0ff,
-      emissiveIntensity: 1.6,
+      emissiveIntensity: 0.9,
       roughness: 0.15,
       metalness: 0.1,
     });
@@ -128,15 +128,25 @@ export class ShipView {
       map: glowTex,
       color: 0x6fd8ff,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.12,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
     this.disposables.push(glowTex);
     this.glow = new THREE.Sprite(glowMat);
-    this.glow.scale.setScalar(2.4);
+    this.glow.scale.setScalar(1.5);
 
-    this.group.add(hull, this.canopy, nozzle, this.flame, this.glow);
+    // A dark shell one size up, rendered back-face only, gives the hull a
+    // read-at-a-glance silhouette against pale rock without any post pass.
+    const outlineMat = new THREE.MeshBasicMaterial({ color: 0x0a1220, side: THREE.BackSide });
+    const outline = new THREE.Mesh(geo, outlineMat);
+    outline.scale.setScalar(1.16);
+    this.disposables.push(outlineMat);
+
+    this.group.add(outline, hull, this.canopy, nozzle, this.flame, this.glow);
+    // Slightly larger than the collision hull: the ship has to be readable at a
+    // glance, and a forgiving collider is better than a big one.
+    this.group.scale.setScalar(1.18);
     this.group.position.z = 0.42;
     this.disposables.push(geo, this.hullMat, canopyGeo, this.canopyMat, nozzleGeo, nozzleMat, flameGeo, this.flameMat, glowMat);
   }
@@ -150,10 +160,12 @@ export class ShipView {
     const thrusting = ship.thrusting;
     this.flame.visible = thrusting;
     if (thrusting) {
+      // The plume length tracks the throttle, so an analog stick reads back.
+      const power = 0.35 + ship.throttle * 0.65;
       this.flicker = this.flicker * 0.7 + Math.random() * 0.3;
-      const len = 0.85 + this.flicker * 0.55;
-      this.flame.scale.set(1 + this.flicker * 0.18, len, 1);
-      this.flameMat.opacity = 0.65 + this.flicker * 0.3;
+      const len = (0.85 + this.flicker * 0.55) * power;
+      this.flame.scale.set((1 + this.flicker * 0.18) * (0.7 + power * 0.3), len, 1);
+      this.flameMat.opacity = (0.65 + this.flicker * 0.3) * power;
 
       // Exhaust particles are emitted in world space so they trail properly.
       const back = -angle;
@@ -161,14 +173,15 @@ export class ShipView {
       const ey = y - Math.cos(back) * 0.45;
       const dirx = Math.sin(angle);
       const diry = -Math.cos(angle);
-      for (let i = 0; i < 2; i++) {
+      const puffs = ship.throttle > 0.55 ? 2 : 1;
+      for (let i = 0; i < puffs; i++) {
         const spread = (Math.random() - 0.5) * 1.6;
         particles.spawn(
           ex,
           ey,
           0.35,
-          dirx * (7 + Math.random() * 5) + -diry * spread + world.ship.vel.x * 0.25,
-          diry * (7 + Math.random() * 5) + dirx * spread + world.ship.vel.y * 0.25,
+          dirx * (7 + Math.random() * 5) * power + -diry * spread + world.ship.vel.x * 0.25,
+          diry * (7 + Math.random() * 5) * power + dirx * spread + world.ship.vel.y * 0.25,
           (Math.random() - 0.5) * 1.2,
           Math.random() < 0.35 ? 0xfff0c0 : 0xff8a3c,
           0.34 + Math.random() * 0.22,
@@ -179,15 +192,17 @@ export class ShipView {
     }
 
     // The canopy and the halo brighten with the flow multiplier - the meter is
-    // readable from the ship itself, without looking at the HUD.
+    // readable from the ship itself, without looking at the HUD. Kept subtle at
+    // rest: a permanent bright halo drowns out the hull it is supposed to
+    // highlight, which is exactly what it used to do.
     const flow = world.flow / 100;
-    this.canopyMat.emissiveIntensity = 1.4 + flow * 2.6;
+    this.canopyMat.emissiveIntensity = 0.8 + flow * 1.8;
     this.canopyMat.emissive.setHex(flow > 0.66 ? 0xc77dff : 0x59e0ff);
-    this.glow.material.opacity = 0.22 + flow * 0.5;
-    this.glow.scale.setScalar(2.2 + flow * 1.2);
+    this.glow.material.opacity = 0.1 + flow * 0.3;
+    this.glow.scale.setScalar(1.5 + flow * 0.9);
 
-    // Landing tolerance readout on the hull: greys out when you are too hot.
-    const tint = world.landing === 'green' ? 0xd7e3f2 : world.landing === 'yellow' ? 0xf0e0b0 : 0xf2c3c9;
+    // Landing tolerance readout on the hull: warms up when you are too hot.
+    const tint = world.landing === 'green' ? 0xdce8f6 : world.landing === 'yellow' ? 0xf2e2b4 : 0xf6bcc4;
     this.hullMat.color.lerp(new THREE.Color(tint), Math.min(1, dt * 8));
   }
 

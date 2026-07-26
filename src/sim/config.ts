@@ -183,5 +183,41 @@ export const DIFFICULTIES: Difficulty[] = [
 ];
 
 export function difficultyById(id: DifficultyId): Difficulty {
-  return DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];
+  return DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[DEFAULT_DIFFICULTY_INDEX];
+}
+
+/** Rookie. A first-time player should not have to find the difficulty menu. */
+const DEFAULT_DIFFICULTY_INDEX = 0;
+export const DEFAULT_DIFFICULTY: DifficultyId = DIFFICULTIES[DEFAULT_DIFFICULTY_INDEX].id;
+
+/**
+ * Overall pace.
+ *
+ * This scales how much simulated time passes per real second. It is *not* a
+ * physics change: gravity, thrust and the speed cap keep their exact
+ * relationships, so the ship handles identically - you simply get more real
+ * milliseconds to react in. That makes it the single most effective difficulty
+ * dial for a reaction-heavy game, and the one least likely to break level
+ * balance, which is why the default sits below 1.
+ */
+export interface GameSpeedOption {
+  id: GameSpeedId;
+  label: string;
+  scale: number;
+  blurb: string;
+}
+
+export type GameSpeedId = 'calm' | 'gentle' | 'standard' | 'brisk';
+
+export const GAME_SPEEDS: GameSpeedOption[] = [
+  { id: 'calm', label: 'Calm', scale: 0.7, blurb: '70% pace. Everything happens with time to spare.' },
+  { id: 'gentle', label: 'Gentle', scale: 0.85, blurb: '85% pace. The default: forgiving without feeling sluggish.' },
+  { id: 'standard', label: 'Standard', scale: 1.0, blurb: '100% pace. The speed the caves were tuned at.' },
+  { id: 'brisk', label: 'Brisk', scale: 1.15, blurb: '115% pace. Everything comes at you sooner.' },
+];
+
+export const DEFAULT_GAME_SPEED: GameSpeedId = 'gentle';
+
+export function gameSpeedById(id: GameSpeedId): GameSpeedOption {
+  return GAME_SPEEDS.find((s) => s.id === id) ?? GAME_SPEEDS[1];
 }

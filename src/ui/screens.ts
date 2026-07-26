@@ -8,7 +8,7 @@
  * along.
  */
 
-import { DIFFICULTIES, type DifficultyId } from '../sim/config';
+import { DIFFICULTIES, gameSpeedById, type DifficultyId } from '../sim/config';
 import { LEVELS } from '../sim/levels';
 import type { SaveData } from '../app/save';
 import type { ScoreBreakdown } from '../sim/world';
@@ -124,7 +124,18 @@ export class Screens {
 
   // --- screens --------------------------------------------------------------
 
-  title(save: SaveData, actions: { play: () => void; levels: () => void; difficulty: () => void; password: () => void; help: () => void; reset: () => void }) {
+  title(
+    save: SaveData,
+    actions: {
+      play: () => void;
+      levels: () => void;
+      difficulty: () => void;
+      settings: () => void;
+      password: () => void;
+      help: () => void;
+      reset: () => void;
+    },
+  ) {
     const next = Math.min(save.unlocked, LEVELS.length);
     const diff = DIFFICULTIES.find((d) => d.id === save.difficulty)!;
     const cleared = Object.values(save.levels).filter((l) => l.cleared).length;
@@ -153,6 +164,7 @@ export class Screens {
       },
       { label: 'Select cave', hint: `${save.unlocked} unlocked`, action: actions.levels },
       { label: 'Difficulty', hint: diff.name, action: actions.difficulty },
+      { label: 'Settings', hint: `${gameSpeedById(save.gameSpeed).label} pace`, action: actions.settings },
       { label: 'Enter password', action: actions.password },
       { label: 'How to fly', action: actions.help },
       { label: 'Erase progress', hint: 'cannot be undone', action: actions.reset },
@@ -181,6 +193,31 @@ export class Screens {
       const li = list.children[i] as HTMLElement;
       li.title = d.blurb;
     });
+  }
+
+  settings(
+    save: SaveData,
+    actions: {
+      speed: () => void;
+      touch: () => void;
+      sound: () => void;
+      back: () => void;
+    },
+  ) {
+    const speed = gameSpeedById(save.gameSpeed);
+    const touchLabel = { auto: 'Automatic', on: 'Always on', off: 'Off' }[save.touch];
+    const host = this.panel(`
+      <h2>SETTINGS</h2>
+      <p>Pace scales how much simulated time passes per real second. It is not a physics change &mdash;
+         the ship handles identically, you just get more milliseconds to react in.</p>
+      <p class="hint">${esc(speed.blurb)}</p>
+    `);
+    this.mountMenu(host, [
+      { label: 'Pace', hint: `${speed.label} · ${Math.round(speed.scale * 100)}%`, action: actions.speed },
+      { label: 'On-screen controls', hint: touchLabel, action: actions.touch },
+      { label: 'Sound', hint: save.muted ? 'off' : 'on', action: actions.sound },
+      { label: 'Back', action: actions.back },
+    ]);
   }
 
   levelSelect(save: SaveData, pick: (id: number) => void, back: () => void) {
@@ -256,7 +293,12 @@ export class Screens {
           <p><b>Flow</b><br />Skimming close to rock at speed fills the flow meter. It multiplies everything you score and trickles fuel back into the tank. The fastest line is the dangerous one — that is the point.</p>
         </div>
       </div>
-      <p class="footnote">Gamepads work too: left stick or d-pad to turn, A or right trigger to thrust.</p>
+      <p class="footnote">
+        Gamepads work too: left stick or d-pad to turn, A or right trigger to thrust.
+        On a touchscreen you get two on-screen sliders &mdash; drag the left one to steer, the right one
+        up for power. Both are analog, so you can feather the engine to hold a hover; hovering sits at
+        roughly a third of the throttle travel. Force them on or off under Settings.
+      </p>
     `);
     this.mountMenu(host, [{ label: 'Back', action: back }]);
   }

@@ -328,7 +328,7 @@ export function flyLevel(
       };
     }
     if (world.status === 'dying') {
-      stepWorld(world, { turn: 0, thrust: false, levelOut: false }, FIXED_DT);
+      stepWorld(world, { turn: 0, throttle: 0, levelOut: false }, FIXED_DT);
       field = null;
       targetKey = '';
       phase = 'travel';
@@ -457,7 +457,7 @@ export function flyLevel(
     if (ship.state === 'landed') {
       const refuelling = ship.landedOn?.kind === 'fuel' && ship.fuel < world.fuelMax * 0.95;
       const done = !refuelling;
-      stepWorld(world, { turn: 0, thrust: done, levelOut: false }, FIXED_DT);
+      stepWorld(world, { turn: 0, throttle: done ? 1 : 0, levelOut: false }, FIXED_DT);
       if (done) {
         field = null;
         targetKey = '';
@@ -589,7 +589,7 @@ export function flyLevel(
       pwm = 0;
     }
 
-    const input: InputFrame = { turn, thrust, levelOut: false };
+    const input: InputFrame = { turn, throttle: thrust ? 1 : 0, levelOut: false };
     if (opts.trace) {
       const wp = field ? waypoint(field, ship.pos.x, ship.pos.y) : { x: tx, y: ty };
       opts.trace(

@@ -503,3 +503,198 @@ kbd {
     transition: none;
   }
 }
+
+/* --- On-screen touch controls --------------------------------------------- */
+
+.touch {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 2vw;
+  padding: clamp(10px, 2.4vmin, 26px);
+  padding-bottom: max(clamp(10px, 2.4vmin, 26px), env(safe-area-inset-bottom));
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch[hidden] {
+  display: none;
+}
+
+/* With sliders mounted, the whole lower half of the screen belongs to thumbs.
+   Rather than shoving the bottom HUD row up by the widget height - which lands
+   it in the middle of the playfield - both rows stack at the top and the bottom
+   stays clear. TouchControls still publishes --touch-h; the rotate hint uses it. */
+body.has-touch-controls .hud {
+  justify-content: flex-start;
+  gap: 0.7em;
+}
+
+body.has-touch-controls .hud-bottom {
+  align-items: flex-start;
+}
+
+body.has-touch-controls .toast {
+  top: 34%;
+}
+
+.touch-steer,
+.touch-throttle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.touch-label {
+  font-size: clamp(9px, 1.3vmin, 12px);
+  letter-spacing: 0.18em;
+  color: var(--dim);
+}
+
+/* Horizontal steering track */
+.touch-track {
+  position: relative;
+  width: clamp(150px, 34vw, 320px);
+  height: clamp(52px, 11vmin, 76px);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(79, 214, 255, 0.09), rgba(8, 12, 20, 0.72));
+  backdrop-filter: blur(2px);
+  touch-action: none;
+}
+
+.touch-centre {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  bottom: 22%;
+  width: 1px;
+  background: var(--edge);
+}
+
+/* Vertical throttle track */
+.touch-vtrack {
+  position: relative;
+  width: clamp(52px, 11vmin, 76px);
+  height: clamp(150px, 30vh, 300px);
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: linear-gradient(0deg, rgba(125, 227, 168, 0.1), rgba(8, 12, 20, 0.72));
+  backdrop-filter: blur(2px);
+  overflow: hidden;
+  touch-action: none;
+}
+
+.touch-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  background: linear-gradient(0deg, rgba(125, 227, 168, 0.55), rgba(255, 177, 92, 0.5));
+  transition: height 40ms linear;
+}
+
+.touch-knob {
+  position: absolute;
+  width: clamp(40px, 8.4vmin, 58px);
+  height: clamp(40px, 8.4vmin, 58px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #eaf6ff, #7fb6d6 62%, #33566d);
+  box-shadow: 0 0 14px rgba(79, 214, 255, 0.45), inset 0 -2px 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.touch-track > .touch-knob {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.touch-vtrack > .touch-knob {
+  left: 50%;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+}
+
+.touch-mid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  padding-bottom: 0.4em;
+}
+
+.touch-btn {
+  min-width: clamp(56px, 12vmin, 84px);
+  min-height: clamp(42px, 8vmin, 58px);
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.72);
+  backdrop-filter: blur(2px);
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(10px, 1.4vmin, 13px);
+  letter-spacing: 0.14em;
+  touch-action: none;
+}
+
+.touch-btn.held {
+  border-color: var(--accent);
+  background: rgba(79, 214, 255, 0.18);
+  color: var(--accent);
+}
+
+/* Portrait phones: the sliders need the width more than the label does. */
+@media (orientation: portrait) and (max-width: 560px) {
+  .touch-track {
+    width: clamp(120px, 40vw, 240px);
+  }
+  .touch-vtrack {
+    height: clamp(110px, 20vh, 200px);
+  }
+  .touch-label {
+    display: none;
+  }
+  .touch-mid {
+    flex-direction: row;
+    align-self: center;
+  }
+}
+
+/* Short landscape phones: keep the throttle from eating the whole height. */
+@media (orientation: landscape) and (max-height: 460px) {
+  .touch-vtrack {
+    height: clamp(96px, 34vh, 160px);
+  }
+}
+
+/* --- Rotate hint ---------------------------------------------------------- */
+
+.rotate-hint {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--touch-h, 0px) + 1.2em);
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 0.45em 1em;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--dim);
+  font-size: clamp(10px, 1.4vmin, 13px);
+  letter-spacing: 0.12em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.rotate-hint[hidden] {
+  display: none;
+}
