@@ -286,61 +286,105 @@ async function launchLevelOne(page: Page) {
   await expect(page.locator('#hud')).toBeVisible();
 }
 
-/** Drag from the centre of an element to a point given in 0..1 of its box. */
-async function dragWithin(page: Page, selector: string, tx: number, ty: number) {
+/**
+ * Press at a point given in 0..1 of an element's box, then drag by a pixel
+ * offset. The paddles are relative: what matters is the movement, not where it
+ * started.
+ */
+async function pressAndDrag(
+  page: Page,
+  selector: string,
+  from: { x: number; y: number },
+  by: { dx: number; dy: number },
+) {
   const box = (await page.locator(selector).boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const sx = box.x + box.width * from.x;
+  const sy = box.y + box.height * from.y;
+  await page.mouse.move(sx, sy);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width * tx, box.y + box.height * ty, { steps: 6 });
+  await page.mouse.move(sx + by.dx, sy + by.dy, { steps: 8 });
 }
 
-test('the on-screen throttle slider is analog and springs back', async ({ page }) => {
+/** The drag distance that spans a paddle's full range: the drawn track length. */
+async function trackTravel(page: Page, selector: string, axis: 'x' | 'y') {
+  const box = (await page.locator(selector).boundingBox())!;
+  return axis === 'x' ? box.width / 2 : box.height;
+}
+
+test('the throttle paddle is analog and springs back', async ({ page }) => {
   const errors = await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
   await expect(page.locator('.touch')).toBeVisible();
 
-  // Half travel must give roughly half power, not "on".
-  await dragWithin(page, '.touch-vtrack', 0.5, 0.5);
+  const travel = await trackTravel(page, '.touch-vtrack', 'y');
+
+  // Half a track's worth of upward drag is half power, not "on".
+  await pressAndDrag(page, '.touch-vtrack', { x: 0.5, y: 0.5 }, { dx: 0, dy: -travel / 2 });
   await page.waitForTimeout(250);
-  expect((await touchState(page)).throttle).toBeGreaterThan(0.35);
-  expect((await touchState(page)).throttle).toBeLessThan(0.65);
+  const half = (await touchState(page)).throttle;
+  expect(half).toBeGreaterThan(0.35);
+  expect(half).toBeLessThan(0.65);
   await page.mouse.up();
 
   // Releasing must close the throttle, not leave the engine burning.
   await page.waitForTimeout(600);
   expect((await touchState(page)).throttle).toBe(0);
 
-  // Full travel: real power, the ship climbs, the tank drains. The exact
-  // endpoint depends on how the driver rounds the final drag pixel, so the bar
-  // is "near maximum"; the precise mapping is covered above and in the unit
-  // tests.
+  // A full stroke: real power, the ship climbs, the tank drains.
   const before = await shipState(page);
-  await dragWithin(page, '.touch-vtrack', 0.5, 0);
+  await pressAndDrag(page, '.touch-vtrack', { x: 0.5, y: 0.5 }, { dx: 0, dy: -travel });
   await page.waitForTimeout(600);
   const full = await shipState(page);
   await page.mouse.up();
 
-  expect(full.throttle).toBeGreaterThan(0.85);
+  expect(full.throttle).toBeGreaterThan(0.9);
   expect(full.y).toBeGreaterThan(before.y);
   expect(full.fuel).toBeLessThan(before.fuel);
 
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('the on-screen steering slider turns the ship and re-centres', async ({ page }) => {
+test('a thumb that lands beside the throttle track still works', async ({ page }) => {
+  // The whole point of the rewrite. In the first version the hit area was the
+  // drawn track, so pressing next to it and swiping up did nothing at all.
   await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
 
+  const zone = (await page.locator('.touch-zone-right').boundingBox())!;
+  const track = (await page.locator('.touch-vtrack').boundingBox())!;
+  // Bottom-left corner of the zone: comfortably outside the drawn track.
+  const px = zone.x + 12;
+  const py = zone.y + zone.height - 12;
+  expect(px).toBeLessThan(track.x);
+  expect(py).toBeGreaterThan(track.y + track.height);
+
+  await page.mouse.move(px, py);
+  await page.mouse.down();
+  await page.mouse.move(px, py - track.height, { steps: 8 });
+  await page.waitForTimeout(400);
+  const s = await shipState(page);
+  await page.mouse.up();
+
+  expect(s.throttle).toBeGreaterThan(0.9);
+  expect(s.shipState).toBe('flying');
+});
+
+test('the steering paddle turns the ship and re-centres', async ({ page }) => {
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const travel = await trackTravel(page, '.touch-track', 'x');
   const before = await shipState(page);
-  // Right on the track means clockwise, i.e. a decreasing angle.
-  await dragWithin(page, '.touch-track', 0.95, 0.5);
+
+  // Dragging right means clockwise, i.e. a decreasing angle.
+  await pressAndDrag(page, '.touch-track', { x: 0.5, y: 0.5 }, { dx: travel, dy: 0 });
   await page.waitForTimeout(400);
   const turned = await shipState(page);
   expect(turned.angle).toBeLessThan(before.angle - 0.15);
-  // 0.95 across the track maps to -0.9, not to the hard stop.
-  expect((await touchState(page)).turn).toBeLessThan(-0.85);
+  expect((await touchState(page)).turn).toBeLessThan(-0.9);
 
   // The spring-back is asserted on the widget, not on the ship: with no thrust
   // the hull is on its way to the floor and a respawn would swamp the reading.
@@ -352,27 +396,30 @@ test('the on-screen steering slider turns the ship and re-centres', async ({ pag
 test.describe('with a touchscreen', () => {
   test.use({ hasTouch: true });
 
-  test('both sliders respond at once, as two thumbs would', async ({ page }) => {
+  test('a touch in one zone does not steal the other paddle', async ({ page }) => {
     await bootWithoutSave(page);
     await enableTouchControls(page);
     await launchLevelOne(page);
 
     const steer = (await page.locator('.touch-track').boundingBox())!;
-    const thr = (await page.locator('.touch-vtrack').boundingBox())!;
+    const track = (await page.locator('.touch-vtrack').boundingBox())!;
 
-    // A real touch on the steering track, and a separate pointer holding the
-    // throttle open at the same time.
-    await page.touchscreen.tap(steer.x + steer.width * 0.9, steer.y + steer.height / 2);
-    await page.mouse.move(thr.x + thr.width / 2, thr.y + thr.height * 0.05);
+    // Hold the throttle open with one pointer...
+    await page.mouse.move(track.x + track.width / 2, track.y + track.height / 2);
     await page.mouse.down();
-    await page.waitForTimeout(500);
-    const s = await shipState(page);
-    const t = await touchState(page);
-    await page.mouse.up();
+    await page.mouse.move(track.x + track.width / 2, track.y + track.height / 2 - track.height, {
+      steps: 8,
+    });
+    await page.waitForTimeout(300);
+    expect((await touchState(page)).throttle).toBeGreaterThan(0.9);
 
-    expect(t.throttle).toBeGreaterThan(0.8);
-    expect(s.throttle).toBeGreaterThan(0.8);
-    expect(s.shipState).toBe('flying');
+    // ...and touch the steering zone with a second, independent one.
+    await page.touchscreen.tap(steer.x + steer.width * 0.9, steer.y + steer.height / 2);
+    await page.waitForTimeout(300);
+
+    const after = await touchState(page);
+    await page.mouse.up();
+    expect(after.throttle).toBeGreaterThan(0.9);
   });
 });
 

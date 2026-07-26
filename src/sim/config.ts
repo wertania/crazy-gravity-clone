@@ -100,6 +100,15 @@ export interface Difficulty {
   fuelScale: number;
   /** Multiplies safeLandSpeed / safeLandAngle. */
   landToleranceScale: number;
+  /**
+   * Multiplies the hull's speed cap. This is the strongest "make it easier"
+   * lever there is: a slower ship simply cannot build up a velocity it has no
+   * room to shed, so most crashes stop happening rather than being survived.
+   */
+  speedScale: number;
+  /** Multiplies engine power. Lower means gentler acceleration, not a weaker ship -
+   *  gravity is scaled alongside it so the thrust-to-weight ratio stays flyable. */
+  thrustScale: number;
   /** Multiplies hazard fire rates and rod speeds. */
   hazardScale: number;
   /** Multiplies the level par time used for the timer. */
@@ -118,37 +127,43 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'rookie',
     name: 'Rookie',
-    blurb: 'Light gravity, deep tanks, patient hazards. Learn the caves.',
+    blurb: 'A slow, heavy, forgiving hull. Deep tanks, patient hazards. Learn the caves.',
     lives: 9,
     gravityScale: 0.78,
-    fuelScale: 1.45,
+    fuelScale: 2.0,
     landToleranceScale: 1.5,
+    speedScale: 0.58,
+    thrustScale: 0.70,
     hazardScale: 0.7,
-    timeScale: 1.6,
+    timeScale: 2.0,
     hardTimeLimit: false,
     scoreScale: 0.6,
   },
   {
     id: 'pilot',
     name: 'Pilot',
-    blurb: 'The intended way to fly. Fair margins, honest caves.',
+    blurb: 'Noticeably quicker than Rookie. Fair margins, honest caves.',
     lives: 6,
     gravityScale: 0.92,
-    fuelScale: 1.15,
+    fuelScale: 1.3,
     landToleranceScale: 1.2,
+    speedScale: 0.76,
+    thrustScale: 0.84,
     hazardScale: 0.88,
-    timeScale: 1.3,
+    timeScale: 1.55,
     hardTimeLimit: false,
     scoreScale: 1.0,
   },
   {
     id: 'ace',
     name: 'Ace',
-    blurb: 'Baseline gravity and fuel. Landings start to bite.',
+    blurb: 'Full speed and full thrust. Landings start to bite.',
     lives: 4,
     gravityScale: 1.0,
     fuelScale: 1.0,
     landToleranceScale: 1.0,
+    speedScale: 1.0,
+    thrustScale: 1.0,
     hazardScale: 1.0,
     timeScale: 1.1,
     hardTimeLimit: false,
@@ -162,6 +177,8 @@ export const DIFFICULTIES: Difficulty[] = [
     gravityScale: 1.12,
     fuelScale: 0.85,
     landToleranceScale: 0.85,
+    speedScale: 1.08,
+    thrustScale: 1.05,
     hazardScale: 1.2,
     timeScale: 1.0,
     hardTimeLimit: true,
@@ -175,6 +192,8 @@ export const DIFFICULTIES: Difficulty[] = [
     gravityScale: 1.22,
     fuelScale: 0.72,
     landToleranceScale: 0.72,
+    speedScale: 1.18,
+    thrustScale: 1.12,
     hazardScale: 1.45,
     timeScale: 0.85,
     hardTimeLimit: true,

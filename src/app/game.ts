@@ -535,7 +535,7 @@ export class Game {
       this.zoom += (target - this.zoom) * Math.min(1, dt * 2.5);
       this.stage.aim(x, y, { w: world.level.width, h: world.level.height }, world.shake, this.zoom, dt);
       this.hud.update(world, dt);
-      this.audio.engine(world.ship.thrusting ? 1 : 0, speed / 22);
+      this.audio.engine(world.ship.thrusting ? world.ship.throttle : 0, speed / world.maxSpeed);
       this.stage.setBloom(0.42 + (world.flow / 100) * 0.38);
     } else {
       // Menus: drift slowly across the cave so the backdrop stays alive.

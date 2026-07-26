@@ -19,7 +19,8 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 <td><img src="shots/level20-finale.png" alt="Cave 20, Eventide" /></td>
 </tr>
 <tr>
-<td colspan="2"><img src="shots/phone-landscape.png" alt="On a phone in landscape: analog steering slider bottom left, throttle slider bottom right, HUD stacked at the top" /></td>
+<td><img src="shots/phone-landscape.png" alt="On a phone in landscape: steering paddle bottom left, throttle paddle bottom right held open, HUD stacked at the top" /></td>
+<td><img src="shots/difficulty.png" alt="Difficulty screen listing speed and thrust per tier" /></td>
 </tr>
 </table>
 
@@ -63,11 +64,15 @@ npm run preview        # serve the built bundle
 Gamepads work too — left stick or d-pad to turn, A or the right trigger to
 thrust. The trigger is analog.
 
-**On a touchscreen** two on-screen sliders appear automatically: drag the left
-one to steer, the right one up for power. Both are analog and both spring back
-when you let go, and they work simultaneously as two thumbs. Force them on or
-off under Settings. Landscape gives you noticeably more cave to see; portrait is
-playable and the game says so once, rather than blocking the screen.
+**On a touchscreen** two paddles appear automatically. Each owns half of the
+lower screen as a gesture zone, with a slider drawn inside it as an indicator —
+press anywhere in the zone and drag: sideways on the left to steer, upwards on
+the right for power. The mapping is *relative*, so there is no invisible origin
+to find first and a thumb landing beside the drawn track works exactly the same.
+Both are analog, both spring back when you let go, and they work simultaneously
+as two thumbs. Force them on or off under Settings. Landscape gives you
+noticeably more cave to see; portrait is playable and the game says so once,
+rather than blocking the screen.
 
 Thrust only ever fires along the nose. To slow down you have to turn around
 first, and that turn is the entire game.
@@ -81,9 +86,20 @@ Two independent dials, both under Settings and Difficulty:
   keep their exact relationships and the ship handles identically. You simply
   get more real milliseconds to react in, which is the most effective and least
   balance-breaking difficulty dial a reaction game has.
-- **Difficulty** (default *Rookie*) changes hulls, fuel, gravity, hazard tempo
-  and landing tolerance — and your score multiplier. It never changes the
-  level list.
+- **Difficulty** (default *Rookie*) changes the hull itself. The two biggest
+  dials are **top speed** and **thrust**: Rookie flies at 58% speed and 70%
+  thrust, Legend at 118% and 112%. A slower ship simply cannot build up a
+  velocity it has no room to shed, so most crashes stop happening rather than
+  being survived. Hulls, fuel, gravity, hazard tempo, landing tolerance and the
+  score multiplier move with it. It never changes the level list.
+
+  | tier | speed | thrust | hulls | score |
+  |---|---|---|---|---|
+  | Rookie | 58% | 70% | 9 | 0.60× |
+  | Pilot | 76% | 84% | 6 | 1.00× |
+  | Ace | 100% | 100% | 4 | 1.35× |
+  | Veteran | 108% | 105% | 3 | 1.80× |
+  | Legend | 118% | 112% | 1 | 2.50× |
 
 ---
 
@@ -128,7 +144,7 @@ Deliberately modern:
   fuel burn follows the throttle. Feathering the engine to hold a hover is what
   makes a touchscreen viable at all — hover sits at about a third of the slider
   travel, leaving usable resolution on both sides of it.
-- **Adjustable pace**, defaulting below 1.
+- **Adjustable pace**, defaulting below 1, and per-tier speed and thrust.
 
 ---
 
@@ -233,7 +249,8 @@ npm run e2e            # playwright: real browser, real WebGL
 **Unit** (`tests/physics.test.ts`) covers free fall against the analytic
 solution, hover equilibrium, the speed cap, frame-rate independence, fuel burn,
 throttle linearity, a steady hover on a constant analog throttle, the throttle
-dead zone, the auto-level controller, contact normals, anti-tunneling, landing
+dead zone, per-tier speed caps and acceleration, fuel buying the same delta-v on
+every tier, wells staying climbable on every tier, the auto-level controller, contact normals, anti-tunneling, landing
 versus crashing at the tolerance boundary, difficulty-scaled tolerance, respawn
 semantics, and the flow meter's earn and decay rules.
 
@@ -303,6 +320,22 @@ Worth recording, because each one was a design flaw rather than a typo:
 - The results card scaled the total by the difficulty multiplier but printed
   unscaled rows, and omitted freight and key points entirely — an itemised
   table whose rows did not add up to its own total.
+
+A third round, after making the hull speed difficulty-dependent — two of these
+were real balance bugs that only a slow tier could expose:
+
+- **Gravity wells were never difficulty-scaled.** The finale's well pulls at 22
+  while Rookie's thrust is 18.2, so the ship simply could not climb out of it.
+  Wells are an environmental force the engine has to fight, so they now scale
+  with thrust and the ratio stays constant across tiers.
+- **Fuel was charged per second, not per unit of speed change.** A weaker engine
+  needs ~1.4× as long to achieve the same manoeuvre, so the gentlest difficulty
+  was quietly the most fuel-starved one. Burn now scales alongside thrust, which
+  makes fuel buy a fixed amount of delta-v on every tier.
+- The first touch controls made the drawn slider the hit area. A thumb landing
+  beside a 52-pixel-wide track and swiping up did nothing at all — which is
+  exactly what it felt like. Both paddles are now large gesture zones with
+  relative mapping.
 
 A second round, after the touch controls went in:
 

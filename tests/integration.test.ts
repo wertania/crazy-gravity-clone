@@ -17,15 +17,15 @@ import { flyLevel } from './autopilot';
  *   and the clear condition.
  * - UNASSISTED is the subset it also finishes with every hazard live.
  *
- * The seven levels outside NAVIGABLE (3, 7, 10, 11, 13, 14, 17) are a
- * limitation of this pilot, not evidence that they are unwinnable: it plans a
- * static route and follows it with a PD controller, so it loses time in long
- * fuel-critical tunnels and dies at sharp bends in narrow tubes. Their geometry
- * is covered instead by `validateLevel` in levels.test.ts, which proves every
- * crate, key and pad is reachable from the spawn.
+ * The six levels outside NAVIGABLE (7, 10, 12, 13, 14, 17) are a limitation of
+ * this pilot, not evidence that they are unwinnable: it plans a static route
+ * and follows it with a PD controller, so it loses time in long tunnels and
+ * dies at sharp bends in narrow tubes. Their geometry is covered instead by
+ * `validateLevel` in levels.test.ts, which proves every crate, key and pad is
+ * reachable from the spawn.
  */
-const NAVIGABLE = [1, 2, 4, 5, 6, 8, 9, 12, 15, 16, 18, 19, 20];
-const UNASSISTED = [1, 2, 4, 6, 9, 15, 16, 20];
+const NAVIGABLE = [1, 2, 3, 4, 5, 6, 8, 9, 11, 15, 16, 18, 19, 20];
+const UNASSISTED = [1, 2, 3, 4, 6, 9, 11, 15, 16, 20];
 
 function levelWorld(id: number, opts: { hazards: boolean }): World {
   const spec = LEVELS[id - 1];
