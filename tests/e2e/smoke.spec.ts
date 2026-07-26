@@ -286,11 +286,20 @@ async function simTime(page: Page): Promise<number> {
 // ---------------------------------------------------------------------------
 
 /** Force the sliders on regardless of what the test browser reports. */
-async function enableTouchControls(page: Page) {
+/**
+ * Force the on-screen paddles on, and pick the throttle mode the test needs.
+ * `push` is the shipped default; the slider is one cycle away.
+ */
+async function enableTouchControls(page: Page, mode: 'push' | 'slider' = 'push') {
   await row(page, 'Einstellungen').click();
   await expect(page.locator('.panel h2')).toHaveText('EINSTELLUNGEN');
   await row(page, 'Bildschirmsteuerung').click();
   await expect(row(page, 'Bildschirmsteuerung')).toContainText('Immer an');
+  await expect(row(page, 'Schub-Modus')).toContainText('Drücken = Vollgas');
+  if (mode === 'slider') {
+    await row(page, 'Schub-Modus').click();
+    await expect(row(page, 'Schub-Modus')).toContainText('Schieberegler');
+  }
   await row(page, 'Zurück').click();
 }
 
@@ -339,7 +348,7 @@ async function trackTravel(page: Page, selector: string, axis: 'x' | 'y') {
 
 test('the throttle paddle is analog and springs back', async ({ page }) => {
   const errors = await bootWithoutSave(page);
-  await enableTouchControls(page);
+  await enableTouchControls(page, 'slider');
   await launchLevelOne(page);
   await expect(page.locator('.touch')).toBeVisible();
 
@@ -374,8 +383,10 @@ test('the throttle paddle is analog and springs back', async ({ page }) => {
 test('a thumb that lands beside the throttle track still works', async ({ page }) => {
   // The whole point of the rewrite. In the first version the hit area was the
   // drawn track, so pressing next to it and swiping up did nothing at all.
+  // Slider mode, so the power really has to come from the drag: in push mode
+  // the press alone would answer, and the swipe would prove nothing.
   await bootWithoutSave(page);
-  await enableTouchControls(page);
+  await enableTouchControls(page, 'slider');
   await launchLevelOne(page);
 
   const zone = (await page.locator('.touch-zone-right').boundingBox())!;
@@ -395,6 +406,79 @@ test('a thumb that lands beside the throttle track still works', async ({ page }
 
   expect(s.throttle).toBeGreaterThan(0.9);
   expect(s.shipState).toBe('flying');
+});
+
+test('push mode: pressing the right zone is full power at once', async ({ page }) => {
+  // The complaint that produced this mode: on a phone, having to find and hold
+  // a precise upward stroke before the engine does anything at all.
+  const errors = await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+  await expect(page.locator('.touch-btn-mode')).toContainText('PUSH');
+
+  const zone = (await page.locator('.touch-zone-right').boundingBox())!;
+  const before = await shipState(page);
+
+  // Press, and do not move a pixel.
+  await page.mouse.move(zone.x + zone.width * 0.5, zone.y + zone.height * 0.7);
+  await page.mouse.down();
+  await page.waitForTimeout(60);
+  expect((await touchState(page)).throttle).toBe(1);
+
+  await page.waitForTimeout(600);
+  const held = await shipState(page);
+  await page.mouse.up();
+  expect(held.throttle).toBeGreaterThan(0.9);
+  expect(held.y).toBeGreaterThan(before.y);
+  expect(held.fuel).toBeLessThan(before.fuel);
+
+  // Lifting the thumb still has to close the throttle.
+  await page.waitForTimeout(600);
+  expect((await touchState(page)).throttle).toBe(0);
+
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('push mode: pulling down from the press point trims the power', async ({ page }) => {
+  // "Full power on a press" must not cost the analog control - it is the same
+  // paddle, just anchored at the top instead of at zero.
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const travel = await trackTravel(page, '.touch-vtrack', 'y');
+  await pressAndDrag(page, '.touch-vtrack', { x: 0.5, y: 0.5 }, { dx: 0, dy: travel / 2 });
+  await page.waitForTimeout(250);
+  const trimmed = (await touchState(page)).throttle;
+  await page.mouse.up();
+
+  expect(trimmed).toBeGreaterThan(0.35);
+  expect(trimmed).toBeLessThan(0.65);
+});
+
+test('the GAS button switches the mode in flight and the choice sticks', async ({ page }) => {
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const modeBtn = page.locator('.touch-btn-mode');
+  await modeBtn.click();
+  await expect(modeBtn).toContainText('REGLER');
+  await expect(page.locator('.touch-throttle .touch-label')).toHaveText('▲ HOCHZIEHEN');
+
+  // Slider mode now: a motionless press must not open the throttle.
+  const zone = (await page.locator('.touch-zone-right').boundingBox())!;
+  await page.mouse.move(zone.x + zone.width * 0.5, zone.y + zone.height * 0.7);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  expect((await touchState(page)).throttle).toBe(0);
+  await page.mouse.up();
+
+  // And the flip is saved, not just applied to the live widget.
+  await page.reload();
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
+  await row(page, 'Einstellungen').click();
+  await expect(row(page, 'Schub-Modus')).toContainText('Schieberegler');
 });
 
 /** Track and knob geometry, plus how much of the knob is inside its track. */
@@ -422,7 +506,7 @@ test('the throttle knob stays visible and travels the whole track', async ({ pag
   // clipped track and full throttle moved it by one knob-height - about a
   // third of the way up.
   await bootWithoutSave(page);
-  await enableTouchControls(page);
+  await enableTouchControls(page, 'slider');
   await launchLevelOne(page);
 
   const rest = await knobGeometry(page, '.touch-vtrack');

@@ -87,6 +87,14 @@ as two thumbs. Force them on or off under Settings. Landscape gives you
 noticeably more cave to see; portrait is playable and the game says so once,
 rather than blocking the screen.
 
+The throttle paddle has **two modes**, switched with the GAS button between the
+paddles or under Settings → Schub-Modus:
+
+| Mode | What a press does |
+|---|---|
+| `PUSH` (default) | Pressing anywhere in the right zone is **full power**, exactly like the thrust key. Pulling *down* from where you pressed trims it, so fine dosing is still there — it is just no longer the price of getting off the ground. |
+| `REGLER` | Power is purely the upward drag distance. A press alone does nothing; hovering sits at about a third of the pull. |
+
 Thrust only ever fires along the nose. To slow down you have to turn around
 first, and that turn is the entire game.
 
@@ -393,6 +401,14 @@ A second round, after the touch controls went in:
   the top when the sliders are mounted.
 - A guessed margin for the controls did not survive an orientation change, so
   the widget height is measured and published as a CSS variable instead.
+- Even with the paddle fixed, an analog-only throttle was the wrong *default* on
+  a phone: getting airborne needed a precise sustained stroke before anything
+  happened, on a device that is also being tilted and jostled. A press in the
+  right zone is now full power (`PUSH` mode), with the pull-down trim keeping the
+  analog control for anyone who wants it, and the old behaviour is one tap away
+  on the GAS button. Portrait had to give up the button column between the
+  paddles for this — a third button pushed the throttle track off the right
+  edge — so in portrait the buttons sit above the paddles instead.
 
 Playtesting the autopilot runs also changed three level designs: level 7's
 blowers were producing a 2 g net updraft that pinned you to the ceiling, level
