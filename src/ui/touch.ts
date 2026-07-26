@@ -17,9 +17,9 @@
  * 2. **The mapping is relative, not absolute.** Value comes from how far you
  *    have dragged since pressing, not from where your thumb is on screen. You
  *    can start anywhere and push; there is no invisible origin to find first,
- *    and the resting state is always "engine off". Drag distance for the full
- *    range equals the length of the drawn track, so the knob tracks your thumb
- *    one-to-one.
+ *    and the resting state is always "engine off". The drag distance for the
+ *    full range equals the knob's own travel inside its track, so the knob
+ *    follows your thumb one-to-one and reaches both ends.
  *
  * Each zone captures its own pointer, so two thumbs work simultaneously and a
  * finger that wanders outside its zone keeps control of it.
@@ -149,6 +149,8 @@ export class TouchControls {
     document.body.classList.toggle('has-touch-controls', v);
     document.body.style.setProperty('--touch-h', v ? `${this.root.offsetHeight}px` : '0px');
     if (!v) this.reset();
+    // Geometry is only measurable once mounted, so place the knobs now.
+    else this.paint();
   }
 
   get visible() {
@@ -187,11 +189,25 @@ export class TouchControls {
     if (changed) this.paint();
   }
 
-  /** Drag distance that spans the full range: the length of the drawn track. */
+  /**
+   * Pixels the knob's centre can actually move inside its track: the track's
+   * length minus the knob, so the knob stays fully visible at both ends.
+   */
+  private knobRange(p: Paddle, axis: 'x' | 'y'): number {
+    // clientWidth/Height excludes the border, which is the box `left`/`bottom`
+    // are measured against - using the bounding rect leaves the knob a border
+    // width proud of the track at the far end.
+    const span =
+      axis === 'x'
+        ? p.track.clientWidth - p.knob.offsetWidth
+        : p.track.clientHeight - p.knob.offsetHeight;
+    return Math.max(0, span);
+  }
+
+  /** Drag distance that spans the full range. */
   private travel(p: Paddle, axis: 'x' | 'y'): number {
-    const box = p.track.getBoundingClientRect();
-    // Steering runs -1..1 across the track, so half its width is a full deflection.
-    const span = axis === 'x' ? box.width / 2 : box.height;
+    // Steering runs -1..1, so a full deflection is half the knob's travel.
+    const span = axis === 'x' ? this.knobRange(p, 'x') / 2 : this.knobRange(p, 'y');
     return Math.max(MIN_TRAVEL_PX, span);
   }
 
@@ -259,15 +275,32 @@ export class TouchControls {
     });
   }
 
+  /**
+   * Knob positions are computed in pixels from measured geometry.
+   *
+   * They used to be CSS transform percentages, which is the bug that made the
+   * throttle feel broken: a translate percentage resolves against *the element
+   * being moved*, not its container. Full throttle therefore shifted the knob
+   * by one knob-height instead of one track-length - about a third of the way -
+   * and at zero it was translated half its own height below the track, where
+   * `overflow: hidden` cut it in half.
+   */
   private paint() {
-    // -1..1 maps across the full track width; the knob is translated, not re-laid out.
-    this.steer.knob.style.transform = `translate(calc(-50% + ${(-this.turn * 50).toFixed(2)}%), -50%)`;
+    const steerRange = this.knobRange(this.steer, 'x');
+    // turn = +1 is counter-clockwise, which is the left end of the track.
+    this.steer.knob.style.left = `${((0.5 - this.turn / 2) * steerRange).toFixed(1)}px`;
+    this.steer.knob.style.transform = 'translateY(-50%)';
     this.steer.track.parentElement?.setAttribute('aria-valuenow', this.turn.toFixed(2));
 
+    const throttleRange = this.knobRange(this.throttlePaddle, 'y');
+    this.throttlePaddle.knob.style.bottom = `${(this.throttle * throttleRange).toFixed(1)}px`;
+    this.throttlePaddle.knob.style.transform = 'translateX(-50%)';
     const pct = this.throttle * 100;
-    this.throttlePaddle.knob.style.transform = `translate(-50%, calc(50% - ${pct.toFixed(1)}%))`;
     this.throttleFill.style.height = `${pct.toFixed(1)}%`;
-    this.throttlePaddle.track.parentElement?.setAttribute('aria-valuenow', Math.round(pct).toString());
+    this.throttlePaddle.track.parentElement?.setAttribute(
+      'aria-valuenow',
+      Math.round(pct).toString(),
+    );
   }
 
   dispose() {

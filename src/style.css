@@ -742,16 +742,19 @@ body.has-touch-controls .toast {
   box-shadow: 0 0 22px rgba(79, 214, 255, 0.85), inset 0 -2px 6px rgba(0, 0, 0, 0.4);
 }
 
+/* Knob offsets are written in pixels by TouchControls.paint(); the transform
+   here only centres it on the cross axis. Percentages cannot do this job: a
+   translate percentage resolves against the knob, not the track. */
 .touch-track > .touch-knob {
-  left: 50%;
+  left: 0;
   top: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateY(-50%);
 }
 
 .touch-vtrack > .touch-knob {
   left: 50%;
   bottom: 0;
-  transform: translate(-50%, 50%);
+  transform: translateX(-50%);
 }
 
 .touch-mid {
@@ -806,10 +809,11 @@ body.has-touch-controls .toast {
    stroke, and the track length *is* that stroke. */
 @media (orientation: landscape) and (max-height: 480px) {
   .touch {
-    height: 62vh;
+    height: 66vh;
   }
+  /* The track length is the full-power stroke, so it needs to be worth pulling. */
   .touch-vtrack {
-    height: clamp(92px, 30vh, 132px);
+    height: clamp(120px, 44vh, 190px);
   }
   .touch-track {
     width: clamp(140px, 28vw, 260px);
