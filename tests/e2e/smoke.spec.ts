@@ -319,10 +319,22 @@ async function pressAndDrag(
   await page.mouse.move(sx + by.dx, sy + by.dy, { steps: 8 });
 }
 
-/** The drag distance that spans a paddle's full range: the drawn track length. */
+/**
+ * The drag distance that spans a paddle's full range. That is the knob's own
+ * travel inside the track - the track length minus the knob - which is what
+ * the implementation uses so the knob follows the thumb one-to-one.
+ */
 async function trackTravel(page: Page, selector: string, axis: 'x' | 'y') {
-  const box = (await page.locator(selector).boundingBox())!;
-  return axis === 'x' ? box.width / 2 : box.height;
+  return page.evaluate(
+    ([sel, ax]) => {
+      const t = document.querySelector(sel) as HTMLElement;
+      const k = t.querySelector('.touch-knob') as HTMLElement;
+      return ax === 'x'
+        ? (t.clientWidth - k.offsetWidth) / 2
+        : t.clientHeight - k.offsetHeight;
+    },
+    [selector, axis] as const,
+  );
 }
 
 test('the throttle paddle is analog and springs back', async ({ page }) => {
@@ -383,6 +395,74 @@ test('a thumb that lands beside the throttle track still works', async ({ page }
 
   expect(s.throttle).toBeGreaterThan(0.9);
   expect(s.shipState).toBe('flying');
+});
+
+/** Track and knob geometry, plus how much of the knob is inside its track. */
+async function knobGeometry(page: Page, track: string) {
+  return page.evaluate((sel) => {
+    const t = document.querySelector(sel)!.getBoundingClientRect();
+    const k = document.querySelector(sel + ' .touch-knob')!.getBoundingClientRect();
+    const overlapY = Math.min(k.bottom, t.bottom) - Math.max(k.top, t.top);
+    const overlapX = Math.min(k.right, t.right) - Math.max(k.left, t.left);
+    return {
+      trackH: t.height,
+      trackW: t.width,
+      knobH: k.height,
+      knobW: k.width,
+      centreY: k.top + k.height / 2 - t.top,
+      centreX: k.left + k.width / 2 - t.left,
+      visible: (overlapY / k.height) * (overlapX / k.width),
+    };
+  }, track);
+}
+
+test('the throttle knob stays visible and travels the whole track', async ({ page }) => {
+  // Both halves of the original bug: a CSS translate percentage resolves
+  // against the knob, not the track, so at rest the knob hung half outside a
+  // clipped track and full throttle moved it by one knob-height - about a
+  // third of the way up.
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const rest = await knobGeometry(page, '.touch-vtrack');
+  expect(rest.visible).toBeGreaterThan(0.99);
+
+  const travel = await trackTravel(page, '.touch-vtrack', 'y');
+  await pressAndDrag(page, '.touch-vtrack', { x: 0.5, y: 0.5 }, { dx: 0, dy: -travel });
+  await page.waitForTimeout(300);
+
+  const full = await knobGeometry(page, '.touch-vtrack');
+  await page.mouse.up();
+
+  expect(full.visible).toBeGreaterThan(0.99);
+  // The knob must cover essentially all of the room it has, not a third of it.
+  const moved = rest.centreY - full.centreY;
+  const room = rest.trackH - rest.knobH;
+  expect(moved / room).toBeGreaterThan(0.95);
+  // And that room has to be worth pulling in the first place.
+  expect(room).toBeGreaterThan(rest.knobH * 1.5);
+});
+
+test('the steering knob reaches both ends of its track', async ({ page }) => {
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const centre = await knobGeometry(page, '.touch-track');
+  expect(centre.visible).toBeGreaterThan(0.99);
+  expect(centre.centreX).toBeCloseTo(centre.trackW / 2, 0);
+
+  const travel = await trackTravel(page, '.touch-track', 'x');
+  await pressAndDrag(page, '.touch-track', { x: 0.5, y: 0.5 }, { dx: travel, dy: 0 });
+  await page.waitForTimeout(300);
+  const right = await knobGeometry(page, '.touch-track');
+  await page.mouse.up();
+
+  expect(right.visible).toBeGreaterThan(0.99);
+  const moved = right.centreX - centre.centreX;
+  const room = (centre.trackW - centre.knobW) / 2;
+  expect(moved / room).toBeGreaterThan(0.95);
 });
 
 test('the steering paddle turns the ship and re-centres', async ({ page }) => {

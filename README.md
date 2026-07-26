@@ -373,6 +373,14 @@ were real balance bugs that only a slow tier could expose:
   beside a 52-pixel-wide track and swiping up did nothing at all — which is
   exactly what it felt like. Both paddles are now large gesture zones with
   relative mapping.
+- The knobs were positioned with CSS transform percentages, and **a translate
+  percentage resolves against the element being moved, not its container**. So
+  full throttle shifted the knob by one knob-height instead of one
+  track-length — roughly a third of the way — and at rest it was translated
+  half its own height below the track, where `overflow: hidden` cut it in half.
+  Knob offsets are computed in pixels from measured geometry now, and two
+  browser tests assert the knob stays fully visible and covers at least 95% of
+  the room it has.
 
 A second round, after the touch controls went in:
 
