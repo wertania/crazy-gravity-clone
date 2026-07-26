@@ -1,37 +1,64 @@
 /**
- * All full-screen panels: title, difficulty, level select, password entry,
- * briefing card, pause, results, game over.
+ * Alle Vollbild-Tafeln: Titel, Schwierigkeit, Einstellungen, Höhlenauswahl,
+ * Passworteingabe, Einweisung, Pause, Ergebnis, Lauf beendet.
  *
- * Each screen is plain DOM built on demand. Menus are keyboard-first (arrows +
- * Enter, which is how the era played) but every entry is also clickable, and
- * the selected entry is mirrored to `aria-selected` so a screen reader follows
- * along.
+ * Jede Tafel ist einfaches DOM, bei Bedarf gebaut. Die Menüs sind
+ * tastaturzuerst (Pfeile + Enter, wie damals), aber jeder Eintrag ist auch
+ * anklickbar, und die Auswahl steht in `aria-selected`, damit ein Screenreader
+ * mitkommt.
+ *
+ * Layout-Regel: eine Zeile besteht aus Beschriftung plus Erklärung darunter,
+ * der aktuelle Wert steht rechts als Chip. Vier Fakten in ein rechtsbündiges
+ * Kleingedrucktes zu quetschen war der Grund, warum diese Bildschirme vorher
+ * schwer zu lesen waren.
  */
 
-import { DIFFICULTIES, gameSpeedById, type DifficultyId } from '../sim/config';
+import { DIFFICULTIES, GAME_SPEEDS, gameSpeedById, type DifficultyId } from '../sim/config';
 import { LEVELS } from '../sim/levels';
 import type { SaveData } from '../app/save';
 import type { ScoreBreakdown } from '../sim/world';
 
 export interface MenuItem {
   label: string;
-  hint?: string;
+  /** Erklärende Zeile unter der Beschriftung. */
+  desc?: string;
+  /** Aktueller Wert oder Tastenkürzel, rechts als Chip. */
+  value?: string;
+  /** Längere Erklärung, die unter der Liste erscheint, solange der Eintrag gewählt ist. */
+  detail?: string;
   disabled?: boolean;
   action: () => void;
 }
 
 type Medal = 'gold' | 'silver' | 'bronze' | 'none';
 
-const esc = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const MEDAL_DE: Record<Medal, string> = {
+  gold: 'Gold',
+  silver: 'Silber',
+  bronze: 'Bronze',
+  none: 'keine',
+};
 
-const fmt = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+const esc = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  );
+
+const fmt = (s: number) =>
+  `${Math.floor(s / 60)}:${Math.floor(s % 60)
+    .toString()
+    .padStart(2, '0')}`;
+
+const num = (n: number) => n.toLocaleString('de-DE');
+const pct = (x: number) => `${Math.round(x * 100)} %`;
 
 export class Screens {
   private readonly root: HTMLElement;
   private items: MenuItem[] = [];
   private index = 0;
   private listEl: HTMLElement | null = null;
+  private detailEl: HTMLElement | null = null;
   private onSound?: (kind: 'move' | 'select' | 'deny') => void;
 
   constructor(doc: Document = document) {
@@ -51,9 +78,10 @@ export class Screens {
     this.root.textContent = '';
     this.items = [];
     this.listEl = null;
+    this.detailEl = null;
   }
 
-  // --- menu plumbing --------------------------------------------------------
+  // --- Menü-Mechanik --------------------------------------------------------
 
   private panel(html: string): HTMLElement {
     this.root.hidden = false;
@@ -75,7 +103,11 @@ export class Screens {
     items.forEach((item, i) => {
       const li = document.createElement('li');
       li.setAttribute('role', 'option');
-      li.innerHTML = `<span>${esc(item.label)}</span>${item.hint ? `<small>${esc(item.hint)}</small>` : ''}`;
+      li.innerHTML =
+        `<span class="mi-main"><span class="mi-label">${esc(item.label)}</span>` +
+        (item.desc ? `<small class="mi-desc">${esc(item.desc)}</small>` : '') +
+        '</span>' +
+        (item.value ? `<span class="mi-value">${esc(item.value)}</span>` : '');
       if (item.disabled) li.setAttribute('aria-disabled', 'true');
       li.addEventListener('mouseenter', () => {
         if (item.disabled) return;
@@ -87,6 +119,15 @@ export class Screens {
     });
     host.appendChild(ul);
     this.listEl = ul;
+
+    if (items.some((it) => it.detail)) {
+      const p = document.createElement('p');
+      p.className = 'menu-detail';
+      host.appendChild(p);
+      this.detailEl = p;
+    } else {
+      this.detailEl = null;
+    }
     this.paint();
   }
 
@@ -95,6 +136,7 @@ export class Screens {
     Array.from(this.listEl.children).forEach((li, i) =>
       li.setAttribute('aria-selected', String(i === this.index)),
     );
+    if (this.detailEl) this.detailEl.textContent = this.items[this.index]?.detail ?? '';
   }
 
   move(delta: number) {
@@ -122,7 +164,7 @@ export class Screens {
     item.action();
   }
 
-  // --- screens --------------------------------------------------------------
+  // --- Tafeln ---------------------------------------------------------------
 
   title(
     save: SaveData,
@@ -140,117 +182,178 @@ export class Screens {
     const diff = DIFFICULTIES.find((d) => d.id === save.difficulty)!;
     const cleared = Object.values(save.levels).filter((l) => l.cleared).length;
     const golds = Object.values(save.levels).filter((l) => l.medal === 'gold').length;
+    const started = save.unlocked > 1 || cleared > 0;
 
     const host = this.panel(`
       <h1>GRAVITY HAULER</h1>
-      <p class="tagline">Twenty caves. One fragile hull. Bring the freight home.</p>
+      <p class="tagline">Zwanzig Höhlen. Eine zerbrechliche Hülle. Bring die Fracht heim.</p>
       <p>
-        Rotate the ship and burn the engine along its nose. Gravity never stops pulling,
-        the rock is always fatal, and the only soft place to put down is a pad.
+        Der Schub geht immer in Nasenrichtung, die Schwerkraft zieht ununterbrochen, und der
+        Fels ist tödlich. Weich aufsetzen kannst du nur auf einem Landefeld.
       </p>
-      <div class="keycaps">
-        <div><b>Flown</b> ${cleared}/${LEVELS.length} caves</div>
-        <div><b>Gold runs</b> ${golds}</div>
-        <div><b>Career score</b> ${save.totalScore.toLocaleString('en-US')}</div>
-        <div><b>Hulls lost</b> ${save.wrecks}</div>
+      <div class="statline">
+        <span><b>${cleared}</b>/${LEVELS.length} Höhlen</span>
+        <span><b>${golds}</b> Gold</span>
+        <span><b>${num(save.totalScore)}</b> Punkte</span>
+        <span><b>${num(save.wrecks)}</b> Hüllen verloren</span>
       </div>
     `);
 
     this.mountMenu(host, [
       {
-        label: save.unlocked > 1 ? `Continue — ${next.toString().padStart(2, '0')} ${LEVELS[next - 1].name}` : 'Launch',
-        hint: 'Enter',
+        label: started ? 'Weiterfliegen' : 'Starten',
+        desc: `Höhle ${next.toString().padStart(2, '0')} · ${LEVELS[next - 1].name}`,
+        value: 'Enter',
         action: actions.play,
       },
-      { label: 'Select cave', hint: `${save.unlocked} unlocked`, action: actions.levels },
-      { label: 'Difficulty', hint: diff.name, action: actions.difficulty },
-      { label: 'Settings', hint: `${gameSpeedById(save.gameSpeed).label} pace`, action: actions.settings },
-      { label: 'Enter password', action: actions.password },
-      { label: 'How to fly', action: actions.help },
-      { label: 'Erase progress', hint: 'cannot be undone', action: actions.reset },
+      {
+        label: 'Höhle wählen',
+        desc: `${save.unlocked} von ${LEVELS.length} freigeschaltet`,
+        action: actions.levels,
+      },
+      {
+        label: 'Schwierigkeit',
+        desc: 'Tempo, Schub, Hüllen und Landetoleranz des Schiffs',
+        value: diff.name,
+        action: actions.difficulty,
+      },
+      {
+        label: 'Einstellungen',
+        desc: 'Spieltempo, Bildschirmsteuerung, Ton',
+        value: gameSpeedById(save.gameSpeed).label,
+        action: actions.settings,
+      },
+      {
+        label: 'Passwort eingeben',
+        desc: 'Direkt zu einer Höhle, die du schon gesehen hast',
+        action: actions.password,
+      },
+      {
+        label: 'Steuerung',
+        desc: 'Tasten, Gamepad und Bildschirmsteuerung erklärt',
+        action: actions.help,
+      },
+      {
+        label: 'Fortschritt löschen',
+        desc: 'Setzt Höhlen, Bestzeiten und Punkte zurück',
+        value: 'endgültig',
+        action: actions.reset,
+      },
     ]);
   }
 
   difficulty(current: DifficultyId, pick: (id: DifficultyId) => void, back: () => void) {
     const host = this.panel(`
-      <h2>DIFFICULTY</h2>
-      <p>Every tier plays all twenty caves. What changes is the margin for error — and the score you earn for using it.
-         Speed and thrust are the big ones: a slower hull cannot build up a velocity it has no room to shed.</p>
+      <h2>SCHWIERIGKEIT</h2>
+      <p>
+        Jede Stufe spielt alle zwanzig Höhlen – es ändert sich nur dein Spielraum für Fehler
+        und die Punkte, die du dafür bekommst.
+      </p>
+      <p class="hint">
+        Tempo und Schub sind die großen Hebel: eine langsamere Hülle kann Geschwindigkeit,
+        die sie nicht mehr abbauen kann, gar nicht erst aufbauen.
+      </p>
     `);
     this.mountMenu(
       host,
       [
-        ...DIFFICULTIES.map((d) => ({
-          label: `${d.name}${d.id === current ? '  ·  current' : ''}`,
-          hint:
-            `${d.lives} hull${d.lives > 1 ? 's' : ''} · ` +
-            `${Math.round(d.speedScale * 100)}% speed · ` +
-            `${Math.round(d.thrustScale * 100)}% thrust · ` +
-            `${d.scoreScale.toFixed(2)}× score`,
+        ...DIFFICULTIES.map<MenuItem>((d) => ({
+          label: d.name,
+          desc:
+            `Tempo ${pct(d.speedScale)} · Schub ${pct(d.thrustScale)} · ` +
+            `${d.lives} ${d.lives === 1 ? 'Hülle' : 'Hüllen'}`,
+          value: `${d.scoreScale.toFixed(2).replace('.', ',')}× Punkte`,
+          detail: d.blurb + (d.id === current ? '   (aktuell eingestellt)' : ''),
           action: () => pick(d.id),
         })),
-        { label: 'Back', action: back },
+        { label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: back },
       ],
       DIFFICULTIES.findIndex((d) => d.id === current),
     );
-    const list = host.querySelector('.menu')!;
-    DIFFICULTIES.forEach((d, i) => {
-      const li = list.children[i] as HTMLElement;
-      li.title = d.blurb;
-    });
   }
 
   settings(
     save: SaveData,
-    actions: {
-      speed: () => void;
-      touch: () => void;
-      sound: () => void;
-      back: () => void;
-    },
+    actions: { speed: () => void; touch: () => void; sound: () => void; back: () => void },
   ) {
     const speed = gameSpeedById(save.gameSpeed);
-    const touchLabel = { auto: 'Automatic', on: 'Always on', off: 'Off' }[save.touch];
+    const nextSpeed =
+      GAME_SPEEDS[(GAME_SPEEDS.findIndex((g) => g.id === speed.id) + 1) % GAME_SPEEDS.length];
+    const touchLabel = { auto: 'Automatisch', on: 'Immer an', off: 'Aus' }[save.touch];
+    const touchDetail = {
+      auto: 'Erscheint auf Geräten mit Touchscreen, sonst nicht.',
+      on: 'Die beiden Bildschirm-Paddles sind immer eingeblendet.',
+      off: 'Nur Tastatur und Gamepad.',
+    }[save.touch];
+
     const host = this.panel(`
-      <h2>SETTINGS</h2>
-      <p>Pace scales how much simulated time passes per real second. It is not a physics change &mdash;
-         the ship handles identically, you just get more milliseconds to react in.</p>
-      <p class="hint">${esc(speed.blurb)}</p>
+      <h2>EINSTELLUNGEN</h2>
+      <p>
+        Das Tempo bestimmt, wie viel Spielzeit pro echter Sekunde vergeht. Es ist keine
+        Änderung der Physik – das Schiff fliegt sich exakt gleich, du bekommst nur mehr
+        Millisekunden zum Reagieren.
+      </p>
     `);
     this.mountMenu(host, [
-      { label: 'Pace', hint: `${speed.label} · ${Math.round(speed.scale * 100)}%`, action: actions.speed },
-      { label: 'On-screen controls', hint: touchLabel, action: actions.touch },
-      { label: 'Sound', hint: save.muted ? 'off' : 'on', action: actions.sound },
-      { label: 'Back', action: actions.back },
+      {
+        label: 'Tempo',
+        desc: `${speed.label} · ${Math.round(speed.scale * 100)} % der Normalgeschwindigkeit`,
+        value: 'ändern',
+        detail: `${speed.blurb}   Weiter zu: ${nextSpeed.label}.`,
+        action: actions.speed,
+      },
+      {
+        label: 'Bildschirmsteuerung',
+        desc: 'Zwei Paddles zum Ziehen: links lenken, rechts Schub',
+        value: touchLabel,
+        detail: touchDetail,
+        action: actions.touch,
+      },
+      {
+        label: 'Ton',
+        desc: 'Triebwerk, Treffer und Menügeräusche',
+        value: save.muted ? 'Aus' : 'An',
+        detail: 'Lässt sich im Spiel jederzeit mit M umschalten.',
+        action: actions.sound,
+      },
+      { label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: actions.back },
     ]);
   }
 
   levelSelect(save: SaveData, pick: (id: number) => void, back: () => void) {
-    const host = this.panel(`<h2>SELECT CAVE</h2><p>Cleared caves stay open. Best time and medal are per difficulty-agnostic personal best.</p>`);
+    const host = this.panel(`
+      <h2>HÖHLE WÄHLEN</h2>
+      <p>Geschaffte Höhlen bleiben offen. Bestzeit und Medaille sind deine persönlichen Bestwerte.</p>
+    `);
     const items: MenuItem[] = LEVELS.map((l) => {
       const rec = save.levels[l.id];
       const locked = l.id > save.unlocked;
-      const bits: string[] = [];
-      if (rec?.cleared) bits.push(fmt(rec.bestTime));
-      if (rec?.medal && rec.medal !== 'none') bits.push(rec.medal);
-      if (locked) bits.push('locked');
       return {
         label: `${l.id.toString().padStart(2, '0')}  ${l.name}`,
-        hint: bits.join(' · '),
+        desc: locked
+          ? 'Noch gesperrt – schaffe erst die Höhle davor'
+          : rec?.cleared
+            ? `Bestzeit ${fmt(rec.bestTime)} · ${num(rec.bestScore)} Punkte`
+            : 'Freigeschaltet, noch nicht geschafft',
+        value: locked ? 'gesperrt' : rec?.cleared && rec.medal !== 'none' ? MEDAL_DE[rec.medal] : undefined,
+        detail: locked ? undefined : l.hint,
         disabled: locked,
         action: () => pick(l.id),
       };
     });
-    items.push({ label: 'Back', action: back });
+    items.push({ label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: back });
     this.mountMenu(host, items, Math.max(0, save.unlocked - 1));
   }
 
   password(submit: (pw: string) => void, back: () => void) {
     const host = this.panel(`
-      <h2>PASSWORD</h2>
-      <p>Every cave from the second onwards has one. It is shown when you clear the cave before it.</p>
+      <h2>PASSWORT</h2>
+      <p>
+        Jede Höhle ab der zweiten hat eines. Du bekommst es angezeigt, sobald du die Höhle
+        davor geschafft hast.
+      </p>
       <div class="pwfield"><input id="pw" maxlength="12" autocomplete="off" spellcheck="false" placeholder="········" /></div>
-      <p class="footnote">Enter to confirm · Esc to go back</p>
+      <p class="footnote">Enter zum Bestätigen · Esc für zurück</p>
     `);
     const input = host.querySelector<HTMLInputElement>('#pw')!;
     input.focus();
@@ -276,64 +379,102 @@ export class Screens {
 
   help(back: () => void) {
     const host = this.panel(`
-      <h2>HOW TO FLY</h2>
+      <h2>STEUERUNG</h2>
       <div class="keycaps">
-        <div><kbd>A</kbd><kbd>←</kbd> <b>rotate left</b></div>
-        <div><kbd>D</kbd><kbd>→</kbd> <b>rotate right</b></div>
-        <div><kbd>W</kbd><kbd>↑</kbd><kbd>Space</kbd> <b>thrust</b></div>
-        <div><kbd>S</kbd><kbd>↓</kbd> <b>auto-level assist</b></div>
-        <div><kbd>R</kbd> <b>restart cave</b></div>
-        <div><kbd>Esc</kbd><kbd>P</kbd> <b>pause</b></div>
-        <div><kbd>M</kbd> <b>mute</b></div>
-        <div><kbd>F3</kbd> <b>debug overlay</b></div>
+        <div><kbd>A</kbd><kbd>←</kbd> <b>links drehen</b></div>
+        <div><kbd>D</kbd><kbd>→</kbd> <b>rechts drehen</b></div>
+        <div><kbd>W</kbd><kbd>↑</kbd><kbd>Leer</kbd> <b>Schub</b></div>
+        <div><kbd>S</kbd><kbd>↓</kbd> <b>Lage-Assistent</b></div>
+        <div><kbd>R</kbd> <b>Höhle neu starten</b></div>
+        <div><kbd>Esc</kbd><kbd>P</kbd> <b>Pause</b></div>
+        <div><kbd>M</kbd> <b>Ton an/aus</b></div>
+        <div><kbd>F3</kbd> <b>Technik-Anzeige</b></div>
       </div>
-      <p class="hint">Thrust always fires along the nose. To slow down, turn around first — that turn is the whole game.</p>
+      <p class="hint">
+        Der Schub geht immer in Nasenrichtung. Zum Bremsen musst du dich erst umdrehen –
+        dieses Umdrehen ist das ganze Spiel.
+      </p>
       <div class="grid2">
         <div>
-          <p><b>Landing</b><br />The indicator is green when your speed and tilt are both inside tolerance. Yellow means marginal. Red means you are about to become debris.</p>
-          <p><b>Freight</b><br />Fly into a crate to take it aboard, up to three at once. Every crate aboard makes the hull heavier and lazier, so hauling all three is a real gamble. Land on the blue base to unload; clear the cave once everything is home.</p>
+          <p><b>Landen</b><br />
+            Die Anzeige ist grün, solange Tempo und Neigung beide im Rahmen sind. Gelb heißt
+            grenzwertig. Rot heißt, du wirst gleich zu Schrott.</p>
+          <p><b>Fracht</b><br />
+            Flieg eine Kiste an, um sie aufzunehmen – bis zu drei gleichzeitig. Jede Kiste
+            an Bord macht die Hülle schwerer und träger, alles auf einmal zu schleppen ist
+            also eine echte Wette. Auf der blauen Basis landen lädt ab; die Höhle ist
+            geschafft, sobald alles daheim ist.</p>
         </div>
         <div>
-          <p><b>Fuel</b><br />Burning the engine costs fuel. Green pads refill you while you sit on them. Running dry is not instant death, but gravity gets the last word.</p>
-          <p><b>Flow</b><br />Skimming close to rock at speed fills the flow meter. It multiplies everything you score and trickles fuel back into the tank. The fastest line is the dangerous one — that is the point.</p>
+          <p><b>Treibstoff</b><br />
+            Das Triebwerk kostet Sprit, und zwar so viel, wie du Gas gibst. Grüne Felder
+            betanken dich, solange du darauf stehst. Ein leerer Tank ist kein sofortiger
+            Tod, aber die Schwerkraft hat das letzte Wort.</p>
+          <p><b>Flow</b><br />
+            Wer mit Tempo dicht am Fels entlangschrammt, füllt die Flow-Anzeige. Sie
+            vervielfacht alle Punkte und tropft Sprit zurück in den Tank. Die schnellste
+            Linie ist die gefährliche – genau das ist der Punkt.</p>
         </div>
       </div>
       <p class="footnote">
-        Gamepads work too: left stick or d-pad to turn, A or right trigger to thrust.
-        On a touchscreen you get two on-screen sliders &mdash; drag the left one to steer, the right one
-        up for power. Both are analog, so you can feather the engine to hold a hover; hovering sits at
-        roughly a third of the throttle travel. Force them on or off under Settings.
+        Gamepads gehen auch: linker Stick oder Steuerkreuz zum Drehen, A oder rechter
+        Trigger für Schub – der Trigger ist stufenlos. Auf dem Touchscreen bekommst du zwei
+        Paddles: die linke Bildschirmhälfte lenkt, die rechte gibt Schub. Du drückst
+        irgendwo in der Hälfte auf und ziehst; es zählt, wie weit du ziehst, nicht wo du
+        angefasst hast. Beide sind stufenlos, du kannst das Triebwerk also fein dosieren und
+        schweben – Schweben liegt bei rund einem Drittel des Zugwegs.
       </p>
     `);
-    this.mountMenu(host, [{ label: 'Back', action: back }]);
+    this.mountMenu(host, [{ label: 'Zurück', action: back }]);
   }
 
-  briefing(levelId: number, password: string, hint: string, best: { time: number; medal: Medal } | null, go: () => void, back: () => void) {
+  briefing(
+    levelId: number,
+    password: string,
+    hint: string,
+    best: { time: number; medal: Medal } | null,
+    go: () => void,
+    back: () => void,
+  ) {
     const level = LEVELS[levelId - 1];
+    const crates = level.objects.filter((o) => o.t === 'cargo').length;
     const host = this.panel(`
-      <span class="badge">CAVE ${levelId.toString().padStart(2, '0')} OF ${LEVELS.length}</span>
-      <h2 style="margin-top:.6em">${esc(level.name.toUpperCase())}</h2>
+      <span class="badge">HÖHLE ${levelId.toString().padStart(2, '0')} VON ${LEVELS.length}</span>
+      <h2 style="margin-top:.7em">${esc(level.name.toUpperCase())}</h2>
       <p class="hint">${esc(hint)}</p>
       <div class="keycaps">
-        <div><b>Target time</b> ${fmt(level.par)}</div>
-        <div><b>Freight</b> ${level.objects.filter((o) => o.t === 'cargo').length} crate(s)</div>
-        ${levelId > 1 ? `<div><b>Password</b> ${esc(password)}</div>` : '<div></div>'}
-        ${best ? `<div><b>Your best</b> ${fmt(best.time)} · ${best.medal}</div>` : '<div></div>'}
+        <div><b>Zielzeit</b> ${fmt(level.par)}</div>
+        <div><b>Fracht</b> ${crates} ${crates === 1 ? 'Kiste' : 'Kisten'}</div>
+        ${levelId > 1 ? `<div><b>Passwort</b> ${esc(password)}</div>` : '<div></div>'}
+        ${best ? `<div><b>Deine Bestzeit</b> ${fmt(best.time)} · ${MEDAL_DE[best.medal]}</div>` : '<div></div>'}
       </div>
     `);
     this.mountMenu(host, [
-      { label: 'Launch', hint: 'Enter', action: go },
-      { label: 'Back to title', action: back },
+      { label: 'Losfliegen', value: 'Enter', action: go },
+      { label: 'Zurück zum Titel', action: back },
     ]);
   }
 
-  paused(resume: () => void, restart: () => void, quit: () => void, muted: boolean, toggleMute: () => void) {
-    const host = this.panel(`<h2>PAUSED</h2><p>The simulation is frozen. Nothing moves, nothing burns.</p>`);
+  paused(
+    resume: () => void,
+    restart: () => void,
+    quit: () => void,
+    muted: boolean,
+    toggleMute: () => void,
+  ) {
+    const host = this.panel(`
+      <h2>PAUSE</h2>
+      <p>Die Simulation steht still. Nichts bewegt sich, nichts verbrennt.</p>
+    `);
     this.mountMenu(host, [
-      { label: 'Resume', hint: 'Esc', action: resume },
-      { label: 'Restart cave', hint: 'R', action: restart },
-      { label: muted ? 'Sound: off' : 'Sound: on', hint: 'M', action: toggleMute },
-      { label: 'Abandon run', action: quit },
+      { label: 'Weiterfliegen', value: 'Esc', action: resume },
+      { label: 'Höhle neu starten', desc: 'Von vorn, mit vollem Tank', value: 'R', action: restart },
+      { label: 'Ton', desc: 'Triebwerk und Menügeräusche', value: muted ? 'Aus' : 'An', action: toggleMute },
+      {
+        label: 'Lauf abbrechen',
+        desc: 'Zurück zum Titel – der Fortschritt bleibt gespeichert',
+        action: quit,
+      },
     ]);
   }
 
@@ -350,59 +491,72 @@ export class Screens {
   ) {
     const level = LEVELS[levelId - 1];
     const rows: [string, number][] = [
-      ['Freight delivered', breakdown.cargo],
-      ['Keys recovered', breakdown.keys],
-      ['Time remaining', breakdown.time],
-      ['Fuel remaining', breakdown.fuel],
-      ['Flow bonus', breakdown.flowBonus],
-      ['Flawless run', breakdown.flawless],
+      ['Fracht geliefert', breakdown.cargo],
+      ['Schlüssel geborgen', breakdown.keys],
+      ['Restzeit', breakdown.time],
+      ['Resttreibstoff', breakdown.fuel],
+      ['Flow-Bonus', breakdown.flowBonus],
+      ['Ohne Verluste', breakdown.flawless],
     ];
     const host = this.panel(`
-      <span class="badge">CAVE CLEARED</span>
-      <h2 style="margin-top:.6em">${esc(level.name.toUpperCase())}</h2>
-      <p><span class="medal ${medal}">${medal.toUpperCase()}</span>
-         &nbsp; ${fmt(time)} against a ${fmt(level.par)} target &nbsp;·&nbsp; ${deaths} hull${deaths === 1 ? '' : 's'} lost</p>
+      <span class="badge">HÖHLE GESCHAFFT</span>
+      <h2 style="margin-top:.7em">${esc(level.name.toUpperCase())}</h2>
+      <p>
+        <span class="medal ${medal}">${MEDAL_DE[medal].toUpperCase()}</span>
+        &nbsp; ${fmt(time)} bei einer Zielzeit von ${fmt(level.par)}
+        &nbsp;·&nbsp; ${deaths} ${deaths === 1 ? 'Hülle' : 'Hüllen'} verloren
+      </p>
       <table class="scoretable">
         ${rows
           .filter(([, v]) => v !== 0)
-          .map(([k, v]) => `<tr><td>${k}</td><td>${v.toLocaleString('en-US')}</td></tr>`)
+          .map(([k, v]) => `<tr><td>${k}</td><td>${num(v)}</td></tr>`)
           .join('')}
-        <tr class="total"><td>Total</td><td>${breakdown.total.toLocaleString('en-US')}</td></tr>
+        <tr class="total"><td>Gesamt</td><td>${num(breakdown.total)}</td></tr>
       </table>
-      ${nextPassword ? `<p class="hint">Password for the next cave: <b>${esc(nextPassword)}</b></p>` : ''}
+      ${nextPassword ? `<p class="hint">Passwort für die nächste Höhle: <b>${esc(nextPassword)}</b></p>` : ''}
     `);
     const items: MenuItem[] = [];
-    if (levelId < LEVELS.length) items.push({ label: 'Next cave', hint: 'Enter', action: next });
-    items.push({ label: 'Fly it again', hint: 'R', action: replay });
-    items.push({ label: 'Back to title', action: quit });
+    if (levelId < LEVELS.length) items.push({ label: 'Nächste Höhle', value: 'Enter', action: next });
+    items.push({
+      label: 'Nochmal fliegen',
+      desc: 'Für eine bessere Zeit oder Medaille',
+      value: 'R',
+      action: replay,
+    });
+    items.push({ label: 'Zurück zum Titel', action: quit });
     this.mountMenu(host, items);
   }
 
   gameOver(levelId: number, score: number, reason: string, retry: () => void, quit: () => void) {
     const host = this.panel(`
-      <h2 style="color:var(--bad)">RUN OVER</h2>
+      <h2 style="color:var(--bad)">LAUF BEENDET</h2>
       <p>${esc(reason)}</p>
-      <p>You went down in <b>${esc(LEVELS[levelId - 1].name)}</b> with ${score.toLocaleString('en-US')} points banked.</p>
-      <p class="footnote">Progress up to this cave is saved. Nothing is lost but the run.</p>
+      <p>Du bist in <b>${esc(LEVELS[levelId - 1].name)}</b> geblieben, mit ${num(score)} Punkten auf dem Konto.</p>
+      <p class="footnote">
+        Der Fortschritt bis zu dieser Höhle ist gespeichert. Verloren ist nur der Lauf.
+      </p>
     `);
     this.mountMenu(host, [
-      { label: 'Fly the cave again', hint: 'Enter', action: retry },
-      { label: 'Back to title', action: quit },
+      { label: 'Höhle nochmal fliegen', value: 'Enter', action: retry },
+      { label: 'Zurück zum Titel', action: quit },
     ]);
   }
 
   campaignComplete(save: SaveData, quit: () => void) {
     const golds = Object.values(save.levels).filter((l) => l.medal === 'gold').length;
     const host = this.panel(`
-      <h1>ALL CAVES FLOWN</h1>
-      <p class="tagline">Twenty for twenty. The freight is home.</p>
+      <h1>ALLE HÖHLEN GEFLOGEN</h1>
+      <p class="tagline">Zwanzig von zwanzig. Die Fracht ist daheim.</p>
       <div class="keycaps">
-        <div><b>Career score</b> ${save.totalScore.toLocaleString('en-US')}</div>
-        <div><b>Gold runs</b> ${golds}/${LEVELS.length}</div>
-        <div><b>Hulls lost</b> ${save.wrecks}</div>
+        <div><b>Punkte gesamt</b> ${num(save.totalScore)}</div>
+        <div><b>Gold-Läufe</b> ${golds} von ${LEVELS.length}</div>
+        <div><b>Verlorene Hüllen</b> ${num(save.wrecks)}</div>
       </div>
-      <p>There is still a harder tier, and every cave still has a gold time you have not taken yet.</p>
+      <p>
+        Es gibt immer noch eine härtere Stufe, und jede Höhle hat eine Gold-Zeit, die du dir
+        noch nicht geholt hast.
+      </p>
     `);
-    this.mountMenu(host, [{ label: 'Back to title', action: quit }]);
+    this.mountMenu(host, [{ label: 'Zurück zum Titel', action: quit }]);
   }
 }

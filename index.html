@@ -1,16 +1,265 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Gravity Hauler</title>
     <meta
       name="description"
-      content="A gravity cave flyer: rotate, thrust, haul freight home without touching the walls."
+      content="Ein Höhlenflieger mit Schwerkraft: drehen, Schub geben, Fracht heimbringen – ohne die Wände zu berühren."
     />
+    <meta name="theme-color" content="#05070d" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>%F0%9F%9A%80</text></svg>" />
+
+    <!--
+      Boot screen: inline, so it paints from the very first bytes of the HTML.
+
+      The main bundle is a few hundred kilobytes and WebGL still has shaders to
+      compile after that. On a phone over mobile data those seconds used to be a
+      black screen, which reads as "broken" rather than "loading". Everything
+      here - styles, markup, script - is inline on purpose: an external
+      stylesheet would be render-blocking and an external script would not run
+      until it had itself been fetched, which is precisely the wait being
+      covered.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #05070d;
+        color: #dbe7f5;
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.6em;
+        padding: 6vmin;
+        text-align: center;
+        background: radial-gradient(ellipse at center, #0a1220 0%, #05070d 70%);
+        transition: opacity 320ms ease;
+      }
+      #boot.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot h1 {
+        margin: 0;
+        font-size: clamp(24px, 6.4vmin, 56px);
+        font-weight: 400;
+        letter-spacing: 0.16em;
+        color: #4fd6ff;
+        text-shadow: 0 0 28px rgba(79, 214, 255, 0.35);
+      }
+      #boot .sub {
+        margin: -1em 0 0;
+        font-size: clamp(10px, 1.6vmin, 13px);
+        letter-spacing: 0.18em;
+        color: #7d8ea6;
+      }
+      /* A ship silhouette rising on its own exhaust: motion that costs nothing
+         and cannot stall, because it is pure CSS. */
+      #boot .ship {
+        position: relative;
+        width: 44px;
+        height: 64px;
+        animation: hover 1.8s ease-in-out infinite;
+      }
+      #boot .ship b {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 0;
+        height: 0;
+        transform: translateX(-50%);
+        border-left: 14px solid transparent;
+        border-right: 14px solid transparent;
+        border-bottom: 30px solid #dbe7f5;
+      }
+      #boot .ship i {
+        position: absolute;
+        left: 50%;
+        top: 32px;
+        width: 10px;
+        transform: translateX(-50%);
+        border-left: 5px solid transparent;
+        border-right: 5px solid transparent;
+        border-top: 20px solid #ff9a4d;
+        filter: blur(1px);
+        animation: flame 0.24s steps(2) infinite;
+      }
+      @keyframes hover {
+        0%,
+        100% {
+          transform: translateY(2px);
+        }
+        50% {
+          transform: translateY(-6px);
+        }
+      }
+      @keyframes flame {
+        from {
+          opacity: 0.55;
+          transform: translateX(-50%) scaleY(0.72);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) scaleY(1.1);
+        }
+      }
+      #boot .bar {
+        position: relative;
+        width: min(320px, 72vw);
+        height: 4px;
+        border: 1px solid rgba(79, 214, 255, 0.3);
+        overflow: hidden;
+      }
+      #boot .bar > span {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 6%;
+        background: linear-gradient(90deg, #4fd6ff, #c8f4ff);
+        transition: width 420ms ease;
+      }
+      /* Shimmer over the fill, so the long download phase never looks frozen
+         even while the real progress figure is not moving. */
+      #boot .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+        transform: translateX(-100%);
+        animation: sweep 1.4s linear infinite;
+      }
+      @keyframes sweep {
+        to {
+          transform: translateX(100%);
+        }
+      }
+      #boot .status {
+        min-height: 1.4em;
+        font-size: clamp(10px, 1.6vmin, 13px);
+        letter-spacing: 0.14em;
+        color: #7d8ea6;
+      }
+      #boot .status.warn {
+        color: #ffc94d;
+      }
+      #boot .status.error {
+        color: #ff5c72;
+      }
+      #boot button {
+        margin-top: 0.4em;
+        padding: 0.7em 1.6em;
+        border: 1px solid rgba(79, 214, 255, 0.4);
+        background: rgba(79, 214, 255, 0.08);
+        color: #dbe7f5;
+        font: inherit;
+        letter-spacing: 0.14em;
+        cursor: pointer;
+      }
+      #boot[hidden] {
+        display: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .ship,
+        #boot .ship i,
+        #boot .bar::after {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot">
+      <div class="ship" aria-hidden="true"><b></b><i></i></div>
+      <h1>GRAVITY HAULER</h1>
+      <p class="sub">Zwanzig Höhlen. Eine zerbrechliche Hülle.</p>
+      <div class="bar" role="progressbar" aria-label="Ladefortschritt" aria-valuemin="0" aria-valuemax="100">
+        <span id="boot-fill"></span>
+      </div>
+      <p class="status" id="boot-status" role="status" aria-live="polite">Wird geladen &hellip;</p>
+    </div>
+
+    <script>
+      /*
+       * Boot progress. The phases are real milestones, not a fake timer: each
+       * one only fires when the thing it names has actually happened. The one
+       * phase no script can report on is its own download, which is why the
+       * bar shimmers and the ship keeps flying while it waits.
+       */
+      (function () {
+        var el = document.getElementById('boot');
+        var fill = document.getElementById('boot-fill');
+        var status = document.getElementById('boot-status');
+        var started = Date.now();
+        var settled = false;
+
+        function set(pct, text, cls) {
+          if (settled) return;
+          fill.style.width = pct + '%';
+          el.querySelector('.bar').setAttribute('aria-valuenow', String(pct));
+          if (text) status.textContent = text;
+          status.className = 'status' + (cls ? ' ' + cls : '');
+        }
+
+        // A slow connection deserves an explanation rather than silence.
+        var slow = setTimeout(function () {
+          if (!settled && fill.style.width === '' ) set(6, 'Lädt noch – langsame Verbindung?', 'warn');
+        }, 6000);
+
+        var dead = setTimeout(function () {
+          if (settled) return;
+          set(6, 'Die Spieldateien konnten nicht geladen werden.', 'error');
+          if (!document.getElementById('boot-retry')) {
+            var b = document.createElement('button');
+            b.id = 'boot-retry';
+            b.textContent = 'ERNEUT VERSUCHEN';
+            b.onclick = function () {
+              location.reload();
+            };
+            el.appendChild(b);
+          }
+        }, 30000);
+
+        window.__boot = {
+          phase: function (pct, text) {
+            clearTimeout(slow);
+            set(pct, text);
+          },
+          fail: function (text) {
+            clearTimeout(slow);
+            clearTimeout(dead);
+            set(6, text, 'error');
+            settled = true;
+          },
+          done: function () {
+            if (settled) return;
+            clearTimeout(slow);
+            clearTimeout(dead);
+            set(100, 'Bereit');
+            settled = true;
+            // Hold briefly on a fast connection so the screen reads as a
+            // deliberate title card rather than a flash of noise.
+            var wait = Math.max(0, 450 - (Date.now() - started));
+            setTimeout(function () {
+              el.classList.add('gone');
+              setTimeout(function () {
+                el.remove();
+              }, 360);
+            }, wait);
+          },
+        };
+      })();
+    </script>
+
     <canvas id="stage"></canvas>
 
     <!-- In-flight HUD -->
@@ -18,7 +267,7 @@
       <div class="hud-row hud-top">
         <div class="hud-cluster">
           <div class="gauge" id="g-fuel">
-            <span class="gauge-label">FUEL</span>
+            <span class="gauge-label">TANK</span>
             <div class="bar"><i></i></div>
             <span class="gauge-value">100</span>
           </div>
@@ -35,19 +284,19 @@
         </div>
 
         <div class="hud-cluster hud-right">
-          <div class="stat"><span class="stat-label">SCORE</span><span id="h-score">0</span></div>
-          <div class="stat"><span class="stat-label">HULLS</span><span id="h-lives">—</span></div>
+          <div class="stat"><span class="stat-label">PUNKTE</span><span id="h-score">0</span></div>
+          <div class="stat"><span class="stat-label">HÜLLEN</span><span id="h-lives">—</span></div>
         </div>
       </div>
 
       <div class="hud-row hud-bottom">
         <div class="cargo-strip">
-          <span class="stat-label">FREIGHT</span>
+          <span class="stat-label">FRACHT</span>
           <div id="h-cargo" class="pips"></div>
           <span class="carry" id="h-carry"></span>
         </div>
         <div class="keys-strip" id="h-keys"></div>
-        <div class="landing" id="h-landing"><span class="dot"></span><span class="txt">LANDING</span></div>
+        <div class="landing" id="h-landing"><span class="dot"></span><span class="txt">LANDUNG</span></div>
       </div>
 
       <div id="toast" class="toast"></div>
@@ -57,9 +306,16 @@
     <div id="overlay" class="overlay" hidden></div>
 
     <noscript>
-      <div class="overlay"><div class="panel"><h1>Gravity Hauler</h1><p>This game needs JavaScript and WebGL.</p></div></div>
+      <div class="overlay"><div class="panel"><h1>Gravity Hauler</h1><p>Dieses Spiel braucht JavaScript und WebGL.</p></div></div>
     </noscript>
 
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // A module script that fails to load fires an error event but never runs,
+      // so the boot screen would otherwise sit there until the 30s timeout.
+      document.querySelector('script[type=module]').addEventListener('error', function () {
+        if (window.__boot) window.__boot.fail('Die Spieldateien konnten nicht geladen werden.');
+      });
+    </script>
   </body>
 </html>

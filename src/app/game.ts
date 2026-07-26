@@ -21,6 +21,7 @@ import type { SimEvent } from '../sim/types';
 import { Stage } from '../render/scene';
 import { Terrain } from '../render/terrain';
 import { Props, ShipView, KEY_HEX } from '../render/actors';
+import type { KeyColor } from '../sim/types';
 import { Particles } from '../render/particles';
 import { Backdrop } from '../render/backdrop';
 import { Hud } from '../ui/hud';
@@ -45,10 +46,24 @@ type Mode =
   | 'gameover'
   | 'complete';
 
+const KEY_NAME_DE: Record<KeyColor, string> = {
+  red: 'rot',
+  green: 'grün',
+  blue: 'blau',
+  amber: 'bernstein',
+};
+
 interface Snapshot {
   x: number;
   y: number;
   angle: number;
+}
+
+export interface GameHooks {
+  /** The WebGL context exists; shader compilation is about to happen. */
+  onRendererReady?: () => void;
+  /** The first frame has been composited. */
+  onFirstFrame?: () => void;
 }
 
 export class Game {
@@ -83,8 +98,14 @@ export class Game {
   private debugEl: HTMLElement | null = null;
   private zoom = 1;
 
-  constructor(canvas: HTMLCanvasElement) {
+  private firstFrameDone = false;
+
+  constructor(
+    canvas: HTMLCanvasElement,
+    private readonly hooks: GameHooks = {},
+  ) {
     this.stage = new Stage(canvas);
+    hooks.onRendererReady?.();
     this.stage.world.add(this.ship.group, this.particles.points);
     this.save = Save.load();
     this.audio.setMuted(this.save.muted);
@@ -252,7 +273,7 @@ export class Game {
         const spec = levelByPassword(pw);
         if (!spec) {
           this.audio.ui('deny');
-          this.screens.passwordError('Not a valid password.');
+          this.screens.passwordError('Kein gültiges Passwort.');
           return;
         }
         this.input.captureText = false;
@@ -377,8 +398,8 @@ export class Game {
     this.audio.ambience(0.4);
     const reason =
       world.time > world.timeLimit && world.diff.hardTimeLimit
-        ? 'The clock ran out before the freight was home.'
-        : 'The last hull is scattered across the rock.';
+        ? 'Die Zeit war um, bevor die Fracht daheim war.'
+        : 'Die letzte Hülle liegt in Einzelteilen auf dem Fels.';
     this.screens.gameOver(
       this.levelId,
       world.score,
@@ -406,7 +427,7 @@ export class Game {
     }
     if (c === 'mute' && !this.input.captureText) {
       this.toggleMute();
-      this.hud.flash(this.audio.muted ? 'SOUND OFF' : 'SOUND ON', 1.1);
+      this.hud.flash(this.audio.muted ? 'TON AUS' : 'TON AN', 1.1);
       return;
     }
 
@@ -467,7 +488,7 @@ export class Game {
         p.burst(e.x, e.y, 90, 16, 0xffb060, 0.5, 1.0);
         p.burst(e.x, e.y, 50, 9, 0xff4a3c, 0.7, 1.3);
         p.burst(e.x, e.y, 30, 22, 0xffffff, 0.3, 0.4);
-        this.hud.flash('HULL LOST', 1.2);
+        this.hud.flash('HÜLLE VERLOREN', 1.2);
         break;
       case 'land':
         p.burst(e.x, e.y - 0.4, 14, 4, 0x9fd8ff, 0.3, 0.45);
@@ -477,14 +498,14 @@ export class Game {
         break;
       case 'pickup':
         p.burst(e.x, e.y, 26, 6, 0xffc46a, 0.32, 0.6);
-        this.hud.flash('FREIGHT ABOARD', 1.0);
+        this.hud.flash('FRACHT AN BORD', 1.0);
         break;
       case 'deliver':
         p.burst(e.x, e.y, 34, 7, 0x62d6ff, 0.34, 0.7);
         break;
       case 'key':
         p.burst(e.x, e.y, 30, 7, e.color ? KEY_HEX[e.color] : 0xffffff, 0.34, 0.7);
-        this.hud.flash(`${(e.color ?? '').toUpperCase()} KEY`, 1.0);
+        this.hud.flash(`SCHLÜSSEL ${KEY_NAME_DE[e.color ?? 'red'].toUpperCase()}`, 1.0);
         break;
       case 'gate-open':
         p.burst(e.x, e.y, 40, 10, e.color ? KEY_HEX[e.color] : 0xffffff, 0.4, 0.9);
@@ -493,13 +514,13 @@ export class Game {
         p.burst(e.x, e.y, 8, 6, 0xffc88a, 0.24, 0.3);
         break;
       case 'flow-peak':
-        this.hud.flash('FLOW MAX — 3.0×', 1.2);
+        this.hud.flash('FLOW MAXIMAL — 3,0×', 1.2);
         break;
       case 'out-of-fuel':
-        this.hud.flash('TANKS DRY', 1.6);
+        this.hud.flash('TANK LEER', 1.6);
         break;
       case 'timeout':
-        this.hud.flash('OUT OF TIME', 2);
+        this.hud.flash('ZEIT ABGELAUFEN', 2);
         break;
       default:
         break;
@@ -551,6 +572,10 @@ export class Game {
 
     this.adaptQuality(realDt);
     this.stage.render();
+    if (!this.firstFrameDone) {
+      this.firstFrameDone = true;
+      this.hooks.onFirstFrame?.();
+    }
     if (this.debug) this.drawDebug(world);
   }
 
