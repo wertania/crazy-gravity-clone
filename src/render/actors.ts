@@ -495,7 +495,7 @@ export class Props {
   }
 
   private buildWells(world: World) {
-    for (const well of world.level.wells) {
+    for (const well of world.wells) {
       const g = new THREE.Group();
       for (let i = 0; i < 4; i++) {
         const geo = this.track(new THREE.TorusGeometry(well.radius * (0.3 + i * 0.24), 0.09, 8, 64));

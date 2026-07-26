@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Gravity Hauler - a modern Three.js cave-flyer in the spirit of Thrust / Crazy Gravity",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4173",
     "test": "vitest run",

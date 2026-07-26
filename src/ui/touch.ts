@@ -1,17 +1,28 @@
 /**
  * On-screen flight controls for touch devices.
  *
- * Two analog sliders, because the two axes of this game are genuinely analog:
+ * Two paddles, each a *gesture zone* with a slider drawn inside it:
  *
- * - **Steering** (bottom left, horizontal). The knob springs back to centre on
+ * - **Steering** (left half of the lower screen). Drag sideways; the further
+ *   from where you pressed, the harder the turn. Springs back to zero on
  *   release, so letting go stops the turn rather than leaving the ship spinning.
- * - **Throttle** (bottom right, vertical). Drag up for power. Analog throttle is
- *   the reason this works at all on a touchscreen: with an on/off button you
- *   cannot hold a hover, and hovering is most of the game. Hover sits at roughly
- *   a third of the travel, which leaves usable resolution on both sides of it.
+ * - **Throttle** (right half). Drag upwards for power.
  *
- * Both use pointer capture per element, so two thumbs work simultaneously and a
- * finger that slides off the widget keeps controlling it.
+ * Two deliberate decisions, both from the first version being unpleasant to use:
+ *
+ * 1. **The hit area is the whole half of the lower screen, not the drawn
+ *    slider.** The visible track is an indicator. A thumb that lands next to a
+ *    52-pixel-wide track and swipes up should not silently do nothing, and in
+ *    the first version that is exactly what happened.
+ * 2. **The mapping is relative, not absolute.** Value comes from how far you
+ *    have dragged since pressing, not from where your thumb is on screen. You
+ *    can start anywhere and push; there is no invisible origin to find first,
+ *    and the resting state is always "engine off". The drag distance for the
+ *    full range equals the knob's own travel inside its track, so the knob
+ *    follows your thumb one-to-one and reaches both ends.
+ *
+ * Each zone captures its own pointer, so two thumbs work simultaneously and a
+ * finger that wanders outside its zone keeps control of it.
  */
 
 export interface TouchState {
@@ -20,17 +31,27 @@ export interface TouchState {
   levelOut: boolean;
 }
 
-/** How fast the steering knob springs back to centre, in units per second. */
+/** How fast the steering value springs back to centre, in units per second. */
 const RECENTRE_RATE = 6;
 /** Throttle decay per second once the thumb lifts, so the engine eases off. */
 const THROTTLE_RELEASE_RATE = 5;
+/** Smallest usable drag distance, in case a track renders tiny. */
+const MIN_TRAVEL_PX = 60;
+
+interface Paddle {
+  zone: HTMLElement;
+  track: HTMLElement;
+  knob: HTMLElement;
+  pointerId: number | null;
+  anchor: number;
+  /** Value at the moment of the press, so a re-grab does not snap to zero. */
+  anchorValue: number;
+}
 
 export class TouchControls {
   readonly root: HTMLElement;
-  private readonly steerTrack: HTMLElement;
-  private readonly steerKnob: HTMLElement;
-  private readonly throttleTrack: HTMLElement;
-  private readonly throttleKnob: HTMLElement;
+  private readonly steer: Paddle;
+  private readonly throttlePaddle: Paddle;
   private readonly throttleFill: HTMLElement;
   private readonly levelBtn: HTMLElement;
   private readonly pauseBtn: HTMLElement;
@@ -38,8 +59,6 @@ export class TouchControls {
   private turn = 0;
   private throttle = 0;
   private levelOut = false;
-  private steerPointer: number | null = null;
-  private throttlePointer: number | null = null;
   private mounted = false;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -51,29 +70,48 @@ export class TouchControls {
     this.root.className = 'touch';
     this.root.hidden = true;
     this.root.innerHTML = `
-      <div class="touch-steer" role="slider" aria-label="Steering" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0">
-        <div class="touch-track"><span class="touch-centre"></span><i class="touch-knob"></i></div>
-        <span class="touch-label">◄ TURN ►</span>
+      <div class="touch-zone touch-zone-left" data-role="steer">
+        <div class="touch-steer" role="slider" aria-label="Lenkung"
+             aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0">
+          <div class="touch-track"><span class="touch-centre"></span><i class="touch-knob"></i></div>
+          <span class="touch-label">◄ ZIEHEN ZUM LENKEN ►</span>
+        </div>
       </div>
       <div class="touch-mid">
-        <button class="touch-btn" data-role="level" type="button" aria-label="Auto-level assist">LEVEL</button>
+        <button class="touch-btn" data-role="level" type="button" aria-label="Lage-Assistent">LAGE</button>
         <button class="touch-btn" data-role="pause" type="button" aria-label="Pause">II</button>
       </div>
-      <div class="touch-throttle" role="slider" aria-label="Throttle" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <div class="touch-vtrack"><b class="touch-fill"></b><i class="touch-knob"></i></div>
-        <span class="touch-label">THRUST</span>
+      <div class="touch-zone touch-zone-right" data-role="throttle">
+        <div class="touch-throttle" role="slider" aria-label="Schub"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="touch-vtrack"><b class="touch-fill"></b><i class="touch-knob"></i></div>
+          <span class="touch-label">▲ HOCHZIEHEN</span>
+        </div>
       </div>`;
 
-    this.steerTrack = this.root.querySelector('.touch-steer .touch-track')!;
-    this.steerKnob = this.root.querySelector('.touch-steer .touch-knob')!;
-    this.throttleTrack = this.root.querySelector('.touch-throttle .touch-vtrack')!;
-    this.throttleKnob = this.root.querySelector('.touch-throttle .touch-knob')!;
-    this.throttleFill = this.root.querySelector('.touch-fill')!;
-    this.levelBtn = this.root.querySelector('[data-role="level"]')!;
-    this.pauseBtn = this.root.querySelector('[data-role="pause"]')!;
+    const pick = (sel: string): HTMLElement => this.root.querySelector(sel)!;
+    this.steer = {
+      zone: pick('[data-role="steer"]'),
+      track: pick('.touch-track'),
+      knob: pick('.touch-steer .touch-knob'),
+      pointerId: null,
+      anchor: 0,
+      anchorValue: 0,
+    };
+    this.throttlePaddle = {
+      zone: pick('[data-role="throttle"]'),
+      track: pick('.touch-vtrack'),
+      knob: pick('.touch-throttle .touch-knob'),
+      pointerId: null,
+      anchor: 0,
+      anchorValue: 0,
+    };
+    this.throttleFill = pick('.touch-fill');
+    this.levelBtn = pick('[data-role="level"]');
+    this.pauseBtn = pick('[data-role="pause"]');
 
-    this.wireSteering();
-    this.wireThrottle();
+    this.wirePaddle(this.steer, 'x');
+    this.wirePaddle(this.throttlePaddle, 'y');
     this.wireButtons();
     doc.body.appendChild(this.root);
     this.observeHeight();
@@ -111,6 +149,8 @@ export class TouchControls {
     document.body.classList.toggle('has-touch-controls', v);
     document.body.style.setProperty('--touch-h', v ? `${this.root.offsetHeight}px` : '0px');
     if (!v) this.reset();
+    // Geometry is only measurable once mounted, so place the knobs now.
+    else this.paint();
   }
 
   get visible() {
@@ -125,8 +165,10 @@ export class TouchControls {
     this.turn = 0;
     this.throttle = 0;
     this.levelOut = false;
-    this.steerPointer = null;
-    this.throttlePointer = null;
+    this.steer.pointerId = null;
+    this.throttlePaddle.pointerId = null;
+    this.steer.zone.classList.remove('engaged');
+    this.throttlePaddle.zone.classList.remove('engaged');
     this.levelBtn.classList.remove('held');
     this.paint();
   }
@@ -135,71 +177,81 @@ export class TouchControls {
   update(dt: number) {
     if (!this.mounted) return;
     let changed = false;
-    if (this.steerPointer === null && this.turn !== 0) {
+    if (this.steer.pointerId === null && this.turn !== 0) {
       const step = RECENTRE_RATE * dt;
       this.turn = Math.abs(this.turn) <= step ? 0 : this.turn - Math.sign(this.turn) * step;
       changed = true;
     }
-    if (this.throttlePointer === null && this.throttle > 0) {
+    if (this.throttlePaddle.pointerId === null && this.throttle > 0) {
       this.throttle = Math.max(0, this.throttle - THROTTLE_RELEASE_RATE * dt);
       changed = true;
     }
     if (changed) this.paint();
   }
 
-  private wireSteering() {
-    const el = this.steerTrack;
-    const read = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      const t = (e.clientX - r.left) / Math.max(1, r.width);
-      // A small dead zone in the middle stops a resting thumb from drifting.
-      const raw = Math.max(-1, Math.min(1, t * 2 - 1));
-      this.turn = Math.abs(raw) < 0.06 ? 0 : -raw; // right on screen = clockwise
-      this.paint();
-    };
-    el.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      this.steerPointer = e.pointerId;
-      el.setPointerCapture(e.pointerId);
-      read(e);
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (this.steerPointer !== e.pointerId) return;
-      read(e);
-    });
-    const end = (e: PointerEvent) => {
-      if (this.steerPointer !== e.pointerId) return;
-      this.steerPointer = null;
-    };
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
+  /**
+   * Pixels the knob's centre can actually move inside its track: the track's
+   * length minus the knob, so the knob stays fully visible at both ends.
+   */
+  private knobRange(p: Paddle, axis: 'x' | 'y'): number {
+    // clientWidth/Height excludes the border, which is the box `left`/`bottom`
+    // are measured against - using the bounding rect leaves the knob a border
+    // width proud of the track at the far end.
+    const span =
+      axis === 'x'
+        ? p.track.clientWidth - p.knob.offsetWidth
+        : p.track.clientHeight - p.knob.offsetHeight;
+    return Math.max(0, span);
   }
 
-  private wireThrottle() {
-    const el = this.throttleTrack;
-    const read = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      // Track runs bottom (0) to top (1).
-      const t = 1 - (e.clientY - r.top) / Math.max(1, r.height);
-      this.throttle = Math.max(0, Math.min(1, t));
+  /** Drag distance that spans the full range. */
+  private travel(p: Paddle, axis: 'x' | 'y'): number {
+    // Steering runs -1..1, so a full deflection is half the knob's travel.
+    const span = axis === 'x' ? this.knobRange(p, 'x') / 2 : this.knobRange(p, 'y');
+    return Math.max(MIN_TRAVEL_PX, span);
+  }
+
+  private wirePaddle(p: Paddle, axis: 'x' | 'y') {
+    const apply = (e: PointerEvent) => {
+      const travel = this.travel(p, axis);
+      if (axis === 'x') {
+        // Dragging right turns clockwise, which is a negative angle rate.
+        const delta = (e.clientX - p.anchor) / travel;
+        this.turn = Math.max(-1, Math.min(1, p.anchorValue - delta));
+      } else {
+        // Screen y grows downwards, so dragging up is a positive delta.
+        const delta = (p.anchor - e.clientY) / travel;
+        this.throttle = Math.max(0, Math.min(1, p.anchorValue + delta));
+      }
       this.paint();
     };
-    el.addEventListener('pointerdown', (e) => {
+
+    p.zone.addEventListener('pointerdown', (e) => {
+      if (p.pointerId !== null) return;
       e.preventDefault();
-      this.throttlePointer = e.pointerId;
-      el.setPointerCapture(e.pointerId);
-      read(e);
+      p.pointerId = e.pointerId;
+      p.anchor = axis === 'x' ? e.clientX : e.clientY;
+      // Re-grabbing mid-flight continues from the current value rather than
+      // dumping the engine or snapping the rudder straight.
+      p.anchorValue = axis === 'x' ? this.turn : this.throttle;
+      p.zone.setPointerCapture(e.pointerId);
+      p.zone.classList.add('engaged');
+      this.paint();
     });
-    el.addEventListener('pointermove', (e) => {
-      if (this.throttlePointer !== e.pointerId) return;
-      read(e);
+
+    p.zone.addEventListener('pointermove', (e) => {
+      if (p.pointerId !== e.pointerId) return;
+      apply(e);
     });
+
     const end = (e: PointerEvent) => {
-      if (this.throttlePointer !== e.pointerId) return;
-      this.throttlePointer = null;
+      if (p.pointerId !== e.pointerId) return;
+      p.pointerId = null;
+      p.zone.classList.remove('engaged');
     };
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
+    p.zone.addEventListener('pointerup', end);
+    p.zone.addEventListener('pointercancel', end);
+    p.zone.addEventListener('lostpointercapture', end);
   }
 
   private wireButtons() {
@@ -209,6 +261,7 @@ export class TouchControls {
     };
     this.levelBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       hold(true);
     });
@@ -217,18 +270,37 @@ export class TouchControls {
     }
     this.pauseBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       this.onPause();
     });
   }
 
+  /**
+   * Knob positions are computed in pixels from measured geometry.
+   *
+   * They used to be CSS transform percentages, which is the bug that made the
+   * throttle feel broken: a translate percentage resolves against *the element
+   * being moved*, not its container. Full throttle therefore shifted the knob
+   * by one knob-height instead of one track-length - about a third of the way -
+   * and at zero it was translated half its own height below the track, where
+   * `overflow: hidden` cut it in half.
+   */
   private paint() {
-    // -1..1 maps to the full track width; the knob is translated, not re-laid-out.
-    this.steerKnob.style.transform = `translate(calc(-50% + ${(-this.turn * 50).toFixed(2)}%), -50%)`;
-    this.steerTrack.parentElement?.setAttribute('aria-valuenow', this.turn.toFixed(2));
+    const steerRange = this.knobRange(this.steer, 'x');
+    // turn = +1 is counter-clockwise, which is the left end of the track.
+    this.steer.knob.style.left = `${((0.5 - this.turn / 2) * steerRange).toFixed(1)}px`;
+    this.steer.knob.style.transform = 'translateY(-50%)';
+    this.steer.track.parentElement?.setAttribute('aria-valuenow', this.turn.toFixed(2));
+
+    const throttleRange = this.knobRange(this.throttlePaddle, 'y');
+    this.throttlePaddle.knob.style.bottom = `${(this.throttle * throttleRange).toFixed(1)}px`;
+    this.throttlePaddle.knob.style.transform = 'translateX(-50%)';
     const pct = this.throttle * 100;
-    this.throttleKnob.style.transform = `translate(-50%, calc(50% - ${pct.toFixed(1)}%))`;
     this.throttleFill.style.height = `${pct.toFixed(1)}%`;
-    this.throttleTrack.parentElement?.setAttribute('aria-valuenow', Math.round(pct).toString());
+    this.throttlePaddle.track.parentElement?.setAttribute(
+      'aria-valuenow',
+      Math.round(pct).toString(),
+    );
   }
 
   dispose() {
