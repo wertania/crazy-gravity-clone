@@ -323,6 +323,96 @@ started with too little fuel to reach the first pad with any margin.
 
 ---
 
+## Deployment
+
+The game is a static bundle — no server, no database, no state that outlives a
+tab. The image is a two-stage build: Node builds `dist`, nginx serves it, and
+the ~300 MB of `node_modules` stays behind in the build stage.
+
+```bash
+docker build -t gravity-hauler .
+docker run --rm -p 8080:80 gravity-hauler   # http://localhost:8080
+```
+
+or, the same thing through compose:
+
+```bash
+docker compose up --build                   # http://localhost:8080
+```
+
+### On Coolify
+
+New resource → **Public Repository** (or your Git source) → this repo, branch
+`main`.
+
+| Setting | Value |
+|---|---|
+| Build pack | **Dockerfile** |
+| Dockerfile location | `/Dockerfile` |
+| Port | `80` |
+| Health check path | `/healthz` |
+
+Nothing else is required: no build command, no environment variables, no
+volumes. Coolify's proxy terminates TLS and forwards to port 80 inside the
+container. The image declares its own `HEALTHCHECK`, so the container status in
+the UI reflects whether nginx is actually answering rather than merely running.
+
+Choosing the **Docker Compose** build pack instead works too — remove the
+`ports:` block from `docker-compose.yml` first, or Coolify will try to publish
+8080 on the host as well as route through its proxy.
+
+### What the nginx config does
+
+`docker/default.conf`, with the shared response headers in
+`docker/security-headers.conf`:
+
+- **`/assets/` is cached for a year, immutable.** Vite fingerprints those
+  filenames, so the name changes whenever the content does.
+- **`index.html` is `no-cache`.** Not "don't store" — store it, but revalidate,
+  so a deploy is picked up on the next load instead of whenever a cache feels
+  like expiring.
+- **gzip on the fly.** The bundle goes out at 178 kB instead of 684 kB, which on
+  mobile data is most of the loading screen's reason to exist.
+- **`/healthz` returns `ok`**, outside the access log so a 30-second probe does
+  not drown the interesting lines.
+- **CSP, nosniff, Referrer-Policy, Permissions-Policy, X-Frame-Options**, all
+  `always`, and included in *each* location block — an `add_header` inside a
+  location discards the inherited set rather than adding to it, which is the
+  classic way security headers vanish from exactly the responses that matter.
+  The policy is `'self'` throughout with one concession: `'unsafe-inline'` for
+  script and style, because the loading screen is inline in `index.html` on
+  purpose.
+
+Two things this config deliberately does *not* do. There is no `listen [::]:80`
+— on a host with IPv6 switched off in the container's network namespace that is
+not a degraded service, it is a container that refuses to start, and Coolify's
+proxy is what faces the public network anyway. And there is no `gzip_static`,
+which would trade CPU for a pre-compression step at build time: the directive is
+missing from some nginx builds, and an unknown directive is again a container
+that will not start.
+
+The source map ships with the build. Browsers only fetch it when devtools are
+open, so it costs a visitor nothing and makes a production stack trace readable.
+
+### Verifying it
+
+The image was built and run, and the browser suite was pointed at the container
+instead of `vite preview` — it behaves identically to the dev server, WebGL and
+all. Also checked against the running container: the headers arrive on both HTML
+and asset
+responses, gzip is applied (684 kB → 178 kB), `/healthz` returns `200 ok`, the
+declared `HEALTHCHECK` reports `healthy`, a missing fingerprinted asset 404s
+rather than being quietly answered with `index.html`, and `docker compose up`
+brings the same thing up on :8080. The image is 78 MB.
+
+Testing it caught two things. `listen [::]:80` in the first draft is not a
+degraded service but a container that refuses to start where IPv6 is off in the
+container's network namespace. And the nginx base image's own `50x.html` was
+sitting in the webroot next to the game, so the directory is emptied before
+`dist` is copied in.
+
+---
+
 ## Licence
 
 MIT. See `LICENSE`.

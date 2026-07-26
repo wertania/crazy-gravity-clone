@@ -1,0 +1,25 @@
+# Local build-and-run, and a ready-made stack for Coolify's "Docker Compose"
+# build pack.
+#
+#   docker compose up --build      -> http://localhost:8080
+#
+# On Coolify the simpler route is the Dockerfile build pack (point it at this
+# repo, port 80, health check /healthz). Use this file when you want the
+# compose flow; Coolify assigns the public port through its own proxy, so drop
+# the `ports` block there or it will try to publish 8080 on the host as well.
+
+services:
+  gravity-hauler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gravity-hauler:latest
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/healthz']
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
