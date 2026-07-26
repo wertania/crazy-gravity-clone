@@ -6,7 +6,14 @@
  */
 
 import * as THREE from 'three';
-import { FIXED_DT, difficultyById, type DifficultyId } from '../sim/config';
+import {
+  FIXED_DT,
+  GAME_SPEEDS,
+  difficultyById,
+  gameSpeedById,
+  type DifficultyId,
+  type GameSpeedId,
+} from '../sim/config';
 import { buildLevel } from '../sim/level';
 import { LEVELS, levelByPassword } from '../sim/levels';
 import { createWorld, medalFor, stepWorld, type World } from '../sim/world';
@@ -18,6 +25,7 @@ import { Particles } from '../render/particles';
 import { Backdrop } from '../render/backdrop';
 import { Hud } from '../ui/hud';
 import { Screens } from '../ui/screens';
+import { TouchControls } from '../ui/touch';
 import { Input, type Command } from './input';
 import { FixedLoop } from './loop';
 import { Audio } from '../audio/audio';
@@ -26,6 +34,7 @@ import * as Save from './save';
 type Mode =
   | 'title'
   | 'difficulty'
+  | 'settings'
   | 'levels'
   | 'password'
   | 'help'
@@ -46,6 +55,7 @@ export class Game {
   private readonly stage: Stage;
   private readonly hud = new Hud();
   private readonly screens = new Screens();
+  private readonly touch: TouchControls;
   private readonly input: Input;
   private readonly audio = new Audio();
   private readonly particles = new Particles();
@@ -81,6 +91,8 @@ export class Game {
 
     this.input = new Input();
     this.input.onCommand((c) => this.onCommand(c));
+    this.touch = new TouchControls(() => this.onCommand('pause'));
+    this.input.touch = () => this.touch.state();
     this.screens.setSoundHook((k) => this.audio.ui(k));
 
     // Any gesture is enough to let the browser start audio.
@@ -90,13 +102,32 @@ export class Game {
 
     this.loop = new FixedLoop(
       (dt) => this.step(dt),
-      (alpha, dt) => this.draw(alpha, dt),
+      (alpha, simDt, realDt) => this.draw(alpha, simDt, realDt),
     );
 
+    this.applySettings();
     this.levelId = Math.min(this.save.unlocked, LEVELS.length);
     this.loadLevel(this.levelId);
     this.showTitle();
     this.loop.start();
+  }
+
+  /** Push the saved settings into the systems that consume them. */
+  private applySettings() {
+    this.loop.timeScale = gameSpeedById(this.save.gameSpeed).scale;
+    this.audio.setMuted(this.save.muted);
+  }
+
+  private updateRotateHint() {
+    const portrait = window.innerHeight > window.innerWidth;
+    this.hud.setRotateHint(this.mode === 'playing' && this.touch.visible && portrait);
+  }
+
+  /** Whether the on-screen sliders should be mounted right now. */
+  private wantsTouch(): boolean {
+    if (this.save.touch === 'on') return true;
+    if (this.save.touch === 'off') return false;
+    return TouchControls.deviceHasTouch();
   }
 
   // -------------------------------------------------------------------------
@@ -143,16 +174,19 @@ export class Game {
   private showTitle() {
     this.mode = 'title';
     this.hud.show(false);
+    this.touch.setVisible(false);
+    this.hud.setRotateHint(false);
     this.audio.ambience(0.45);
     this.screens.title(this.save, {
       play: () => this.showBriefing(Math.min(this.save.unlocked, LEVELS.length)),
       levels: () => this.showLevels(),
       difficulty: () => this.showDifficulty(),
+      settings: () => this.showSettings(),
       password: () => this.showPassword(),
       help: () => this.showHelp(),
       reset: () => {
         this.save = Save.reset();
-        this.audio.setMuted(this.save.muted);
+        this.applySettings();
         this.showTitle();
       },
     });
@@ -165,12 +199,40 @@ export class Game {
       (id: DifficultyId) => {
         this.save = { ...this.save, difficulty: id };
         Save.save(this.save);
+        this.applySettings();
         // The active world caches difficulty-scaled values, so rebuild it.
         this.loadLevel(this.levelId);
         this.showTitle();
       },
       () => this.showTitle(),
     );
+  }
+
+  private showSettings() {
+    this.mode = 'settings';
+    this.screens.settings(this.save, {
+      speed: () => {
+        // Cycle rather than open a submenu: four options is not worth a screen.
+        const i = GAME_SPEEDS.findIndex((g) => g.id === this.save.gameSpeed);
+        const next = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length].id as GameSpeedId;
+        this.save = { ...this.save, gameSpeed: next };
+        Save.save(this.save);
+        this.applySettings();
+        this.showSettings();
+      },
+      touch: () => {
+        const order = ['auto', 'on', 'off'] as const;
+        const next = order[(order.indexOf(this.save.touch) + 1) % order.length];
+        this.save = { ...this.save, touch: next };
+        Save.save(this.save);
+        this.showSettings();
+      },
+      sound: () => {
+        this.toggleMute();
+        this.showSettings();
+      },
+      back: () => this.showTitle(),
+    });
   }
 
   private showLevels() {
@@ -218,6 +280,8 @@ export class Game {
     }
     this.mode = 'briefing';
     this.hud.show(false);
+    this.touch.setVisible(false);
+    this.hud.setRotateHint(false);
     const spec = LEVELS[id - 1];
     const rec = this.save.levels[id];
     this.screens.briefing(
@@ -235,6 +299,9 @@ export class Game {
     this.mode = 'playing';
     this.screens.hide();
     this.hud.show(true);
+    this.touch.reset();
+    this.touch.setVisible(this.wantsTouch());
+    this.updateRotateHint();
     this.input.clear();
     this.audio.resume();
     this.audio.ambience(1);
@@ -244,6 +311,7 @@ export class Game {
   private pause() {
     if (this.mode !== 'playing') return;
     this.mode = 'paused';
+    this.touch.setVisible(false);
     this.audio.engine(0, 0);
     this.audio.ambience(0.4);
     this.screens.paused(
@@ -274,6 +342,8 @@ export class Game {
     });
     this.mode = 'cleared';
     this.hud.show(false);
+    this.touch.setVisible(false);
+    this.hud.setRotateHint(false);
     this.audio.ambience(0.4);
 
     const isLast = this.levelId >= LEVELS.length;
@@ -302,6 +372,8 @@ export class Game {
     Save.save(this.save);
     this.mode = 'gameover';
     this.hud.show(false);
+    this.touch.setVisible(false);
+    this.hud.setRotateHint(false);
     this.audio.ambience(0.4);
     const reason =
       world.time > world.timeLimit && world.diff.hardTimeLimit
@@ -434,7 +506,7 @@ export class Game {
     }
   }
 
-  private draw(alpha: number, dt: number) {
+  private draw(alpha: number, dt: number, realDt: number) {
     const world = this.world;
     if (!world) return;
 
@@ -450,6 +522,8 @@ export class Game {
     this.ship.update(world, x, y, angle, dt, this.particles);
     this.props?.update(world, playing ? dt : dt * 0.25, this.particles);
     this.particles.update(dt);
+    this.touch.update(realDt);
+    this.updateRotateHint();
     this.backdrop?.update(dt);
 
     this.stage.lamp.position.set(x, y, 2.2);
@@ -462,7 +536,7 @@ export class Game {
       this.stage.aim(x, y, { w: world.level.width, h: world.level.height }, world.shake, this.zoom, dt);
       this.hud.update(world, dt);
       this.audio.engine(world.ship.thrusting ? 1 : 0, speed / 22);
-      this.stage.setBloom(0.6 + (world.flow / 100) * 0.5);
+      this.stage.setBloom(0.42 + (world.flow / 100) * 0.38);
     } else {
       // Menus: drift slowly across the cave so the backdrop stays alive.
       this.cineT += dt * 0.06;
@@ -475,7 +549,7 @@ export class Game {
       this.audio.engine(0, 0);
     }
 
-    this.adaptQuality(dt);
+    this.adaptQuality(realDt);
     this.stage.render();
     if (this.debug) this.drawDebug(world);
   }
@@ -526,6 +600,7 @@ export class Game {
   dispose() {
     this.loop.stop();
     this.input.dispose();
+    this.touch.dispose();
     this.audio.dispose();
     this.terrain?.dispose();
     this.props?.dispose();

@@ -18,6 +18,7 @@ import type { Level, ObjectSpec, PadSpec } from './level';
 import { tileAt } from './level';
 import {
   LANDABLE,
+  THROTTLE_DEADZONE,
   Tile,
   type InputFrame,
   type KeyColor,
@@ -39,6 +40,8 @@ export interface Ship {
   fuel: number;
   state: ShipState;
   thrusting: boolean;
+  /** Engine power actually applied this step, 0..1. Drives the exhaust plume. */
+  throttle: number;
   /** Cargo ids currently aboard. */
   carrying: number[];
   landedOn: PadSpec | null;
@@ -343,6 +346,7 @@ function makeShip(spawn: Vec2, fuel: number): Ship {
     fuel,
     state: 'flying',
     thrusting: false,
+    throttle: 0,
     carrying: [],
     landedOn: null,
     stateTime: 0,
@@ -619,8 +623,10 @@ export function stepWorld(w: World, input: InputFrame, dt: number): void {
   // --- Thrust and fuel -----------------------------------------------------
   const load = ship.carrying.length;
   const thrustPower = SHIP.thrust * (1 - load * SHIP.cargoThrustPenalty);
-  const wantThrust = input.thrust && ship.fuel > 0;
+  const throttle = Math.max(0, Math.min(1, input.throttle));
+  const wantThrust = throttle > THROTTLE_DEADZONE && ship.fuel > 0;
   ship.thrusting = false;
+  ship.throttle = 0;
 
   if (ship.state === 'landed') {
     handleLandedTick(w, dt, wantThrust);
@@ -634,10 +640,13 @@ export function stepWorld(w: World, input: InputFrame, dt: number): void {
 
   if (wantThrust) {
     ship.thrusting = true;
-    accel.x += -Math.sin(ship.angle) * thrustPower;
-    accel.y += Math.cos(ship.angle) * thrustPower;
+    ship.throttle = throttle;
+    accel.x += -Math.sin(ship.angle) * thrustPower * throttle;
+    accel.y += Math.cos(ship.angle) * thrustPower * throttle;
+    // Fuel follows the throttle, so feathering the engine is genuinely cheaper
+    // than pumping a key on and off.
     const before = ship.fuel;
-    ship.fuel = Math.max(0, ship.fuel - SHIP.fuelBurn * dt);
+    ship.fuel = Math.max(0, ship.fuel - SHIP.fuelBurn * throttle * dt);
     w.stats.fuelUsed += before - ship.fuel;
     if (ship.fuel === 0 && before > 0) emit(w, { type: 'out-of-fuel', x: ship.pos.x, y: ship.pos.y });
   }
@@ -707,6 +716,7 @@ function handleLandedTick(w: World, dt: number, wantThrust: boolean) {
     ship.landedOn = null;
     ship.vel.y = LIFTOFF_SPEED;
     ship.thrusting = true;
+    ship.throttle = 1;
     emit(w, { type: 'liftoff', x: ship.pos.x, y: ship.pos.y });
   }
 

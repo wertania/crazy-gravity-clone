@@ -25,7 +25,13 @@ async function shipState(page: Page) {
   return page.evaluate(() => {
     const w = (window as never as { game: { world: unknown } }).game as unknown as {
       world: {
-        ship: { pos: { x: number; y: number }; angle: number; fuel: number; state: string };
+        ship: {
+          pos: { x: number; y: number };
+          angle: number;
+          fuel: number;
+          state: string;
+          throttle: number;
+        };
         time: number;
         status: string;
         level: { spec: { id: number; name: string } };
@@ -38,6 +44,7 @@ async function shipState(page: Page) {
       angle: s.ship.angle,
       fuel: s.ship.fuel,
       shipState: s.ship.state,
+      throttle: s.ship.throttle,
       time: s.time,
       status: s.status,
       levelId: s.level.spec.id,
@@ -128,7 +135,9 @@ test('pause freezes the simulation and resumes it', async ({ page }) => {
 
   await page.keyboard.press('Escape');
   await expect(page.locator('#hud')).toBeVisible();
-  await page.waitForTimeout(400);
+  // Generous: a single software-rendered frame can exceed 300 ms here, and the
+  // pace multiplier means one frame is less than one simulated frame's worth.
+  await page.waitForTimeout(1200);
   const running = await shipState(page);
   expect(running.time).toBeGreaterThan(frozen.time);
 });
@@ -207,13 +216,16 @@ test('keeps the simulation at real time on the largest level', async ({ page }) 
   const elapsedWall = (Date.now() - wall0) / 1000;
   const elapsedSim = (await simTime(page)) - t0;
 
-  // Below roughly 4 fps the loop's frame-time clamp - the spiral-of-death
-  // guard - deliberately lets simulated time fall behind rather than trying to
-  // catch up forever, and SwiftShader sits right around there. So the bar is
-  // "does not stall, and never runs fast", not exact parity. On real hardware
-  // this margin is not in play at all.
-  expect(elapsedSim).toBeGreaterThan(elapsedWall * 0.55);
-  expect(elapsedSim).toBeLessThan(elapsedWall * 1.05);
+  // Compared against the configured pace, which defaults below 1. Below roughly
+  // 4 fps the loop's frame-time clamp - the spiral-of-death guard - deliberately
+  // lets simulated time fall behind rather than trying to catch up forever, and
+  // SwiftShader sits right around there. So the bar is "does not stall, and
+  // never runs fast", not exact parity. On real hardware this is not in play.
+  const scale = await page.evaluate(
+    () => (window as never as { game: { loop: { timeScale: number } } }).game.loop.timeScale,
+  );
+  expect(elapsedSim).toBeGreaterThan(elapsedWall * scale * 0.55);
+  expect(elapsedSim).toBeLessThan(elapsedWall * scale * 1.05);
 
   // And the renderer must still be producing frames, not wedged.
   const frames = await page.evaluate(
@@ -238,8 +250,166 @@ test('keeps the simulation at real time on the largest level', async ({ page }) 
   expect(quality).toBeLessThan(2);
 });
 
+/** Read the on-screen controls' own state, independent of the simulation. */
+async function touchState(page: Page): Promise<{ turn: number; throttle: number }> {
+  return page.evaluate(() =>
+    (
+      window as never as {
+        game: { touch: { state(): { turn: number; throttle: number } } };
+      }
+    ).game.touch.state(),
+  );
+}
+
 async function simTime(page: Page): Promise<number> {
   return page.evaluate(
     () => (window as never as { game: { world: { time: number } } }).game.world.time,
   );
 }
+
+// ---------------------------------------------------------------------------
+// On-screen controls and pace
+// ---------------------------------------------------------------------------
+
+/** Force the sliders on regardless of what the test browser reports. */
+async function enableTouchControls(page: Page) {
+  await page.getByText('Settings').click();
+  await expect(page.locator('.panel h2')).toHaveText('SETTINGS');
+  await page.getByRole('option', { name: /On-screen controls/ }).click();
+  await expect(page.getByRole('option', { name: /On-screen controls/ })).toContainText('Always on');
+  await page.getByRole('option', { name: 'Back' }).click();
+}
+
+async function launchLevelOne(page: Page) {
+  await page.getByText('Launch', { exact: true }).click();
+  await page.getByRole('option', { name: /Launch/ }).click();
+  await expect(page.locator('#hud')).toBeVisible();
+}
+
+/** Drag from the centre of an element to a point given in 0..1 of its box. */
+async function dragWithin(page: Page, selector: string, tx: number, ty: number) {
+  const box = (await page.locator(selector).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * tx, box.y + box.height * ty, { steps: 6 });
+}
+
+test('the on-screen throttle slider is analog and springs back', async ({ page }) => {
+  const errors = await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+  await expect(page.locator('.touch')).toBeVisible();
+
+  // Half travel must give roughly half power, not "on".
+  await dragWithin(page, '.touch-vtrack', 0.5, 0.5);
+  await page.waitForTimeout(250);
+  expect((await touchState(page)).throttle).toBeGreaterThan(0.35);
+  expect((await touchState(page)).throttle).toBeLessThan(0.65);
+  await page.mouse.up();
+
+  // Releasing must close the throttle, not leave the engine burning.
+  await page.waitForTimeout(600);
+  expect((await touchState(page)).throttle).toBe(0);
+
+  // Full travel: real power, the ship climbs, the tank drains. The exact
+  // endpoint depends on how the driver rounds the final drag pixel, so the bar
+  // is "near maximum"; the precise mapping is covered above and in the unit
+  // tests.
+  const before = await shipState(page);
+  await dragWithin(page, '.touch-vtrack', 0.5, 0);
+  await page.waitForTimeout(600);
+  const full = await shipState(page);
+  await page.mouse.up();
+
+  expect(full.throttle).toBeGreaterThan(0.85);
+  expect(full.y).toBeGreaterThan(before.y);
+  expect(full.fuel).toBeLessThan(before.fuel);
+
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('the on-screen steering slider turns the ship and re-centres', async ({ page }) => {
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  const before = await shipState(page);
+  // Right on the track means clockwise, i.e. a decreasing angle.
+  await dragWithin(page, '.touch-track', 0.95, 0.5);
+  await page.waitForTimeout(400);
+  const turned = await shipState(page);
+  expect(turned.angle).toBeLessThan(before.angle - 0.15);
+  // 0.95 across the track maps to -0.9, not to the hard stop.
+  expect((await touchState(page)).turn).toBeLessThan(-0.85);
+
+  // The spring-back is asserted on the widget, not on the ship: with no thrust
+  // the hull is on its way to the floor and a respawn would swamp the reading.
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  expect((await touchState(page)).turn).toBe(0);
+});
+
+test.describe('with a touchscreen', () => {
+  test.use({ hasTouch: true });
+
+  test('both sliders respond at once, as two thumbs would', async ({ page }) => {
+    await bootWithoutSave(page);
+    await enableTouchControls(page);
+    await launchLevelOne(page);
+
+    const steer = (await page.locator('.touch-track').boundingBox())!;
+    const thr = (await page.locator('.touch-vtrack').boundingBox())!;
+
+    // A real touch on the steering track, and a separate pointer holding the
+    // throttle open at the same time.
+    await page.touchscreen.tap(steer.x + steer.width * 0.9, steer.y + steer.height / 2);
+    await page.mouse.move(thr.x + thr.width / 2, thr.y + thr.height * 0.05);
+    await page.mouse.down();
+    await page.waitForTimeout(500);
+    const s = await shipState(page);
+    const t = await touchState(page);
+    await page.mouse.up();
+
+    expect(t.throttle).toBeGreaterThan(0.8);
+    expect(s.throttle).toBeGreaterThan(0.8);
+    expect(s.shipState).toBe('flying');
+  });
+});
+
+test('a fresh save starts on the easier defaults', async ({ page }) => {
+  await bootWithoutSave(page);
+  await expect(page.getByRole('option', { name: /Difficulty/ })).toContainText('Rookie');
+  await expect(page.getByRole('option', { name: /Settings/ })).toContainText('Gentle pace');
+});
+
+test('the pace setting really slows simulated time down', async ({ page }) => {
+  await bootWithoutSave(page);
+  await launchLevelOne(page);
+
+  const measure = async () => {
+    const t0 = await simTime(page);
+    const w0 = Date.now();
+    await page.waitForTimeout(1800);
+    const t1 = await simTime(page);
+    return (t1 - t0) / ((Date.now() - w0) / 1000);
+  };
+
+  // Default is Gentle (85%).
+  const gentle = await measure();
+
+  await page.keyboard.press('Escape');
+  await page.getByRole('option', { name: /Abandon run/ }).click();
+  await page.getByText('Settings').click();
+  // Gentle -> Standard -> Brisk: two steps to the fastest tier.
+  await page.getByRole('option', { name: /Pace/ }).click();
+  await page.getByRole('option', { name: /Pace/ }).click();
+  await expect(page.getByRole('option', { name: /Pace/ })).toContainText('Brisk');
+  await page.getByRole('option', { name: 'Back' }).click();
+  await launchLevelOne(page);
+
+  const brisk = await measure();
+
+  // Relative comparison: absolute rates depend on the software renderer, but
+  // Brisk must clearly out-pace Gentle.
+  expect(brisk).toBeGreaterThan(gentle * 1.12);
+});
