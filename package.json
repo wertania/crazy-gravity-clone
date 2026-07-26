@@ -1,0 +1,30 @@
+{
+  "name": "gravity-hauler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gravity Hauler - a modern Three.js cave-flyer in the spirit of Thrust / Crazy Gravity",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:41729/git/wertania/crazy-gravity-clone"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "@types/three": "^0.185.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  }
+}
