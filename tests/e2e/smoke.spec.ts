@@ -16,7 +16,7 @@ async function bootWithoutSave(page: Page) {
   // empty. Clearing it in an init script would also wipe it on every reload,
   // which is exactly what the persistence test needs to survive.
   await page.goto('/');
-  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY PILOT');
   return errors;
 }
 
@@ -80,19 +80,31 @@ test('boots into the title screen with a live WebGL canvas', async ({ page }) =>
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
-test('title menu reaches the how-to-fly screen and back', async ({ page }) => {
+test('the settings submenu reaches the how-to-fly screen and back', async ({ page }) => {
   await bootWithoutSave(page);
+  await row(page, 'Einstellungen').click();
+  await expect(page.locator('.panel h2')).toHaveText('EINSTELLUNGEN');
   await row(page, 'Steuerung').click();
   await expect(page.locator('.panel h2')).toHaveText('STEUERUNG');
+  // Back walks one step up the tree, not straight to the title.
   await row(page, 'Zurück').click();
-  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
+  await expect(page.locator('.panel h2')).toHaveText('EINSTELLUNGEN');
+  await row(page, 'Zurück').click();
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY PILOT');
+});
+
+test('the main menu has exactly two entries', async ({ page }) => {
+  await bootWithoutSave(page);
+  await expect(page.getByRole('option')).toHaveCount(2);
+  await expect(page.getByRole('option').first()).toContainText('Missionen fliegen');
+  await expect(page.getByRole('option').last()).toContainText('Einstellungen');
 });
 
 test('launching shows the briefing, then the HUD, and the ship flies', async ({ page }) => {
   const errors = await bootWithoutSave(page);
 
-  await row(page, 'Starten').click();
-  await expect(page.locator('.badge')).toHaveText('HÖHLE 01 VON 20');
+  await row(page, 'Missionen fliegen').click();
+  await expect(page.locator('.badge')).toHaveText('MISSION 01 VON 20');
   await expect(page.locator('.panel h2')).toHaveText('ERSTES LICHT');
 
   await row(page, 'Losfliegen').click();
@@ -129,7 +141,7 @@ test('launching shows the briefing, then the HUD, and the ship flies', async ({ 
 
 test('pause freezes the simulation and resumes it', async ({ page }) => {
   await bootWithoutSave(page);
-  await row(page, 'Starten').click();
+  await row(page, 'Missionen fliegen').click();
   await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 
@@ -154,7 +166,7 @@ test('pause freezes the simulation and resumes it', async ({ page }) => {
 
 test('restart returns the ship to the spawn point', async ({ page }) => {
   await bootWithoutSave(page);
-  await row(page, 'Starten').click();
+  await row(page, 'Missionen fliegen').click();
   await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
 
@@ -172,10 +184,18 @@ test('restart returns the ship to the spawn point', async ({ page }) => {
   expect(reset.fuel).toBeGreaterThan(moved.fuel);
 });
 
-test('a valid password unlocks its cave', async ({ page }) => {
-  await bootWithoutSave(page);
+/** Title -> briefing -> mission picker -> password entry. */
+async function openPasswordEntry(page: Page) {
+  await row(page, 'Missionen fliegen').click();
+  await row(page, 'Andere Mission wählen').click();
+  await expect(page.locator('.panel h2')).toHaveText('MISSION WÄHLEN');
   await row(page, 'Passwort eingeben').click();
   await expect(page.locator('.panel h2')).toHaveText('PASSWORT');
+}
+
+test('a valid password unlocks its mission', async ({ page }) => {
+  await bootWithoutSave(page);
+  await openPasswordEntry(page);
 
   await page.locator('#pw').fill('nonsense');
   await page.locator('#pw').press('Enter');
@@ -184,24 +204,24 @@ test('a valid password unlocks its cave', async ({ page }) => {
   await page.locator('#pw').fill('meander');
   await page.locator('#pw').press('Enter');
   await expect(page.locator('.panel h2')).toHaveText('MÄANDER');
-  await expect(page.locator('.badge')).toHaveText('HÖHLE 16 VON 20');
+  await expect(page.locator('.badge')).toHaveText('MISSION 16 VON 20');
 });
 
 test('progress survives a reload', async ({ page }) => {
   await bootWithoutSave(page);
-  await row(page, 'Passwort eingeben').click();
+  await openPasswordEntry(page);
   await page.locator('#pw').fill('crucible');
   await page.locator('#pw').press('Enter');
-  await expect(page.locator('.badge')).toHaveText('HÖHLE 10 VON 20');
+  await expect(page.locator('.badge')).toHaveText('MISSION 10 VON 20');
 
   await page.reload();
-  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
-  await expect(row(page, 'Weiterfliegen')).toContainText('Schmelztiegel');
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY PILOT');
+  await expect(row(page, 'Missionen fliegen')).toContainText('Schmelztiegel');
 });
 
 test('keeps the simulation at real time on the largest level', async ({ page }) => {
   await bootWithoutSave(page);
-  await row(page, 'Passwort eingeben').click();
+  await openPasswordEntry(page);
   await page.locator('#pw').fill('eventide');
   await page.locator('#pw').press('Enter');
   await row(page, 'Losfliegen').click();
@@ -304,9 +324,19 @@ async function enableTouchControls(page: Page, mode: 'push' | 'slider' = 'push')
 }
 
 async function launchLevelOne(page: Page) {
-  await row(page, 'Starten').click();
+  await row(page, 'Missionen fliegen').click();
   await row(page, 'Losfliegen').click();
   await expect(page.locator('#hud')).toBeVisible();
+}
+
+/**
+ * Open the auxiliary button tray. GAS, LAGE and pause hide behind a toggle in
+ * the top-right corner - on a landscape phone a column of buttons between the
+ * paddles sat right on top of the cave.
+ */
+async function openTray(page: Page) {
+  await page.locator('.touch-menu-btn').click();
+  await expect(page.locator('.touch-tray')).toBeVisible();
 }
 
 /**
@@ -414,6 +444,8 @@ test('push mode: pressing the right zone is full power at once', async ({ page }
   const errors = await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
+  await expect(page.locator('.touch-tray')).toBeHidden();
+  await openTray(page);
   await expect(page.locator('.touch-btn-mode')).toContainText('PUSH');
 
   const zone = (await page.locator('.touch-zone-right').boundingBox())!;
@@ -425,7 +457,11 @@ test('push mode: pressing the right zone is full power at once', async ({ page }
   await page.waitForTimeout(60);
   expect((await touchState(page)).throttle).toBe(1);
 
-  await page.waitForTimeout(600);
+  // Wait on *simulated* time, not wall time: under SwiftShader a loaded machine
+  // fits barely a second of simulation into a second of waiting, and the climb
+  // this asserts then lands right on the threshold.
+  const t0 = await simTime(page);
+  await expect.poll(() => simTime(page), { timeout: 20_000 }).toBeGreaterThan(t0 + 1);
   const held = await shipState(page);
   await page.mouse.up();
   expect(held.throttle).toBeGreaterThan(0.9);
@@ -460,6 +496,7 @@ test('the GAS button switches the mode in flight and the choice sticks', async (
   await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
+  await openTray(page);
 
   const modeBtn = page.locator('.touch-btn-mode');
   await modeBtn.click();
@@ -476,7 +513,7 @@ test('the GAS button switches the mode in flight and the choice sticks', async (
 
   // And the flip is saved, not just applied to the live widget.
   await page.reload();
-  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER');
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY PILOT');
   await row(page, 'Einstellungen').click();
   await expect(row(page, 'Schub-Modus')).toContainText('Schieberegler');
 });
@@ -603,8 +640,9 @@ test.describe('with a touchscreen', () => {
 
 test('a fresh save starts on the easier defaults', async ({ page }) => {
   await bootWithoutSave(page);
+  await row(page, 'Einstellungen').click();
   await expect(row(page, 'Schwierigkeit')).toContainText('Neuling');
-  await expect(row(page, 'Einstellungen')).toContainText('Sanft');
+  await expect(row(page, 'Spieltempo')).toContainText('Sanft');
 });
 
 test('the pace setting really slows simulated time down', async ({ page }) => {
@@ -636,12 +674,12 @@ test('the pace setting really slows simulated time down', async ({ page }) => {
   const gentle = await measure();
 
   await page.keyboard.press('Escape');
-  await row(page, 'Lauf abbrechen').click();
+  await row(page, 'Mission abbrechen').click();
   await row(page, 'Einstellungen').click();
   // Gentle -> Standard -> Brisk: two steps to the fastest tier.
-  await row(page, 'Tempo').click();
-  await row(page, 'Tempo').click();
-  await expect(row(page, 'Tempo')).toContainText('Flott');
+  await row(page, 'Spieltempo').click();
+  await row(page, 'Spieltempo').click();
+  await expect(row(page, 'Spieltempo')).toContainText('Flott');
   await row(page, 'Zurück').click();
   await launchLevelOne(page);
 
@@ -677,7 +715,7 @@ test('shows a loading screen before the bundle has arrived', async ({ page }) =>
   expect(style).toEqual({ opacity: '1', display: 'flex', z: '100' });
 
   // Once the bundle lands the screen must hand over and remove itself.
-  await expect(page.locator('.panel h1')).toHaveText('GRAVITY HAULER', { timeout: 30_000 });
+  await expect(page.locator('.panel h1')).toHaveText('GRAVITY PILOT', { timeout: 30_000 });
   await expect(page.locator('#boot')).toHaveCount(0);
 });
 
@@ -776,4 +814,42 @@ test('the ship never blows the screen out, even with bloom on', async ({ page })
   // Measured ~0.03% after the fix; the pre-fix build sat at ~0.28%, so this
   // bound has room for honest variation and still catches a real regression.
   expect(worst).toBeLessThan(0.0012);
+});
+
+test('the auxiliary buttons keep out of the playfield on a landscape phone', async ({ page }) => {
+  // The complaint that produced the tray: in landscape the GAS / LAGE / pause
+  // column sat in the middle of the lower screen, on top of the cave.
+  await page.setViewportSize({ width: 844, height: 390 });
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  // Closed by default, and nothing of it is over the playfield.
+  await expect(page.locator('.touch-tray')).toBeHidden();
+
+  const toggle = (await page.locator('.touch-menu-btn').boundingBox())!;
+  // Top-right corner: clear of the lower two thirds and hard against the edge.
+  expect(toggle.y + toggle.height).toBeLessThan(390 * 0.25);
+  expect(toggle.x).toBeGreaterThan(844 * 0.85);
+
+  // Open, the tray hangs off that corner rather than sitting mid-screen.
+  await openTray(page);
+  const tray = (await page.locator('.touch-tray').boundingBox())!;
+  expect(tray.x).toBeGreaterThan(844 * 0.8);
+
+  // And the HUD's right-hand cluster does not end up underneath the toggle.
+  const stats = (await page.locator('.hud-right').boundingBox())!;
+  expect(stats.x + stats.width).toBeLessThanOrEqual(toggle.x + 1);
+
+  // Closing it again must not leave the attitude assist stuck on.
+  await page.locator('[data-role="level"]').dispatchEvent('pointerdown');
+  await page.locator('.touch-menu-btn').click();
+  await expect(page.locator('.touch-tray')).toBeHidden();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as never as { game: { touch: { state(): { levelOut: boolean } } } }).game.touch.state()
+          .levelOut,
+    ),
+  ).toBe(false);
 });

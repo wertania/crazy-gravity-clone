@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
-   Gravity Hauler - interface styling.
+   Gravity Pilot - interface styling.
 
    The HUD borrows the original's information set (hulls, freight waiting vs
    carried, colour keys, time against a target, landing indicator) and presents
@@ -649,6 +649,8 @@ kbd {
 body.has-touch-controls .hud {
   justify-content: flex-start;
   gap: 0.7em;
+  /* Leave the top-right corner to the button tray's toggle. */
+  padding-right: calc(clamp(10px, 2vmin, 22px) + clamp(48px, 9vmin, 62px));
 }
 
 body.has-touch-controls .hud-bottom {
@@ -757,16 +759,6 @@ body.has-touch-controls .toast {
   transform: translateX(-50%);
 }
 
-.touch-mid {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6em;
-  pointer-events: auto;
-  padding: 0 0.4em clamp(12px, 3vmin, 30px);
-}
-
 .touch-btn {
   min-width: clamp(58px, 12vmin, 86px);
   min-height: clamp(44px, 8vmin, 60px);
@@ -809,6 +801,46 @@ body.has-touch-controls .toast {
   color: #7de3a8;
 }
 
+/* Auxiliary buttons: a toggle pinned to the top-right frame edge, with the
+   buttons themselves in a tray that drops out of it. In the previous layout
+   this was a column between the two paddles, which on a landscape phone sat in
+   the middle of the playfield and hid a chunk of cave behind two buttons. */
+.touch-menu {
+  position: fixed;
+  z-index: 8;
+  top: max(clamp(10px, 2vmin, 22px), env(safe-area-inset-top));
+  right: max(clamp(10px, 2vmin, 22px), env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5em;
+  pointer-events: auto;
+}
+
+.touch-menu-btn {
+  min-width: clamp(40px, 8vmin, 52px);
+  min-height: clamp(40px, 8vmin, 52px);
+  font-size: clamp(15px, 2.4vmin, 20px);
+  line-height: 1;
+}
+
+.touch-menu-btn.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(79, 214, 255, 0.18);
+}
+
+.touch-tray {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5em;
+}
+
+.touch-tray[hidden] {
+  display: none;
+}
+
 /* Portrait phones: the sliders need the width more than the labels do. */
 @media (orientation: portrait) and (max-width: 560px) {
   .touch-track {
@@ -820,24 +852,16 @@ body.has-touch-controls .toast {
   .touch-label {
     display: none;
   }
-  /* A portrait phone does not have the width for two tracks *and* a column of
-     buttons between them - with three buttons the throttle track was pushed off
-     the right edge. So the row lifts out of the flex line entirely and sits
-     above the paddles, which leaves each zone half the screen. */
-  .touch-mid {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    flex-direction: row;
-    align-self: flex-start;
-    padding: 0;
-  }
   /* The mode switch is the one that can afford to be small: it is not pressed
      while flying. */
   .touch-btn-mode {
     min-width: clamp(46px, 11vmin, 70px);
     font-size: clamp(9px, 1.2vmin, 11px);
+  }
+  /* The tray toggle takes the corner, and a narrow portrait row has no width to
+     spare for the word as well - the dot's colour is the whole signal anyway. */
+  body.has-touch-controls .landing .txt {
+    display: none;
   }
 }
 

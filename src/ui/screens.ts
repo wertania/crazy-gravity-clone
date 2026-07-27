@@ -1,6 +1,6 @@
 /**
- * Alle Vollbild-Tafeln: Titel, Schwierigkeit, Einstellungen, Höhlenauswahl,
- * Passworteingabe, Einweisung, Pause, Ergebnis, Lauf beendet.
+ * Alle Vollbild-Tafeln: Titel, Einstellungen, Schwierigkeit, Missionsauswahl,
+ * Passworteingabe, Einsatzbesprechung, Pause, Auswertung, Missionsende.
  *
  * Jede Tafel ist einfaches DOM, bei Bedarf gebaut. Die Menüs sind
  * tastaturzuerst (Pfeile + Enter, wie damals), aber jeder Eintrag ist auch
@@ -11,6 +11,11 @@
  * der aktuelle Wert steht rechts als Chip. Vier Fakten in ein rechtsbündiges
  * Kleingedrucktes zu quetschen war der Grund, warum diese Bildschirme vorher
  * schwer zu lesen waren.
+ *
+ * Der Aufbau ist bewusst flach: das Hauptmenü kennt nur "Missionen fliegen"
+ * und "Einstellungen". Alles, was man selten anfasst, liegt eine Ebene tiefer,
+ * und die Passwortfreischaltung sitzt dort, wo sie hingehört – bei der
+ * Missionsauswahl.
  */
 
 import { DIFFICULTIES, GAME_SPEEDS, gameSpeedById, type DifficultyId } from '../sim/config';
@@ -171,74 +176,43 @@ export class Screens {
     save: SaveData,
     actions: {
       play: () => void;
-      levels: () => void;
-      difficulty: () => void;
       settings: () => void;
-      password: () => void;
-      help: () => void;
-      reset: () => void;
     },
   ) {
     const next = Math.min(save.unlocked, LEVELS.length);
-    const diff = DIFFICULTIES.find((d) => d.id === save.difficulty)!;
     const cleared = Object.values(save.levels).filter((l) => l.cleared).length;
     const golds = Object.values(save.levels).filter((l) => l.medal === 'gold').length;
     const started = save.unlocked > 1 || cleared > 0;
 
     const host = this.panel(`
-      <h1>GRAVITY HAULER</h1>
-      <p class="tagline">Zwanzig Höhlen. Eine zerbrechliche Hülle. Bring die Fracht heim.</p>
+      <h1>GRAVITY PILOT</h1>
+      <p class="tagline">Zwanzig Höhlen, ein empfindliches Schiff. Bring die Fracht nach Hause.</p>
       <p>
-        Der Schub geht immer in Nasenrichtung, die Schwerkraft zieht ununterbrochen, und der
-        Fels ist tödlich. Weich aufsetzen kannst du nur auf einem Landefeld.
+        Der Schub wirkt immer in Richtung der Schiffsnase, die Schwerkraft zieht ohne Pause,
+        und jede Felswand ist tödlich. Sanft aufsetzen kannst du nur auf einem Landefeld.
       </p>
       <div class="statline">
-        <span><b>${cleared}</b>/${LEVELS.length} Höhlen</span>
-        <span><b>${golds}</b> Gold</span>
+        <span><b>${cleared}</b> von ${LEVELS.length} Missionen</span>
+        <span><b>${golds}</b> × Gold</span>
         <span><b>${num(save.totalScore)}</b> Punkte</span>
-        <span><b>${num(save.wrecks)}</b> Hüllen verloren</span>
+        <span><b>${num(save.wrecks)}</b> Schiffe verloren</span>
       </div>
     `);
 
     this.mountMenu(host, [
       {
-        label: started ? 'Weiterfliegen' : 'Starten',
-        desc: `Höhle ${next.toString().padStart(2, '0')} · ${LEVELS[next - 1].name}`,
+        label: 'Missionen fliegen',
+        desc: started
+          ? `Weiter mit Mission ${next.toString().padStart(2, '0')} · ${LEVELS[next - 1].name}`
+          : `Beginne mit Mission ${next.toString().padStart(2, '0')} · ${LEVELS[next - 1].name}`,
         value: 'Enter',
+        detail: 'In der Einsatzbesprechung kannst du auch eine andere Mission auswählen.',
         action: actions.play,
       },
       {
-        label: 'Höhle wählen',
-        desc: `${save.unlocked} von ${LEVELS.length} freigeschaltet`,
-        action: actions.levels,
-      },
-      {
-        label: 'Schwierigkeit',
-        desc: 'Tempo, Schub, Hüllen und Landetoleranz des Schiffs',
-        value: diff.name,
-        action: actions.difficulty,
-      },
-      {
         label: 'Einstellungen',
-        desc: 'Spieltempo, Bildschirmsteuerung, Ton',
-        value: gameSpeedById(save.gameSpeed).label,
+        desc: 'Schwierigkeit, Spieltempo, Steuerung und Ton',
         action: actions.settings,
-      },
-      {
-        label: 'Passwort eingeben',
-        desc: 'Direkt zu einer Höhle, die du schon gesehen hast',
-        action: actions.password,
-      },
-      {
-        label: 'Steuerung',
-        desc: 'Tasten, Gamepad und Bildschirmsteuerung erklärt',
-        action: actions.help,
-      },
-      {
-        label: 'Fortschritt löschen',
-        desc: 'Setzt Höhlen, Bestzeiten und Punkte zurück',
-        value: 'endgültig',
-        action: actions.reset,
       },
     ]);
   }
@@ -247,12 +221,12 @@ export class Screens {
     const host = this.panel(`
       <h2>SCHWIERIGKEIT</h2>
       <p>
-        Jede Stufe spielt alle zwanzig Höhlen – es ändert sich nur dein Spielraum für Fehler
-        und die Punkte, die du dafür bekommst.
+        Auf jeder Stufe kannst du alle zwanzig Missionen fliegen. Es ändern sich nur dein
+        Spielraum für Fehler und die Punkte, die du dafür bekommst.
       </p>
       <p class="hint">
-        Tempo und Schub sind die großen Hebel: eine langsamere Hülle kann Geschwindigkeit,
-        die sie nicht mehr abbauen kann, gar nicht erst aufbauen.
+        Tempo und Schub sind die größten Hebel: ein langsameres Schiff baut Geschwindigkeit,
+        die es nicht mehr abbauen kann, gar nicht erst auf.
       </p>
     `);
     this.mountMenu(
@@ -262,12 +236,12 @@ export class Screens {
           label: d.name,
           desc:
             `Tempo ${pct(d.speedScale)} · Schub ${pct(d.thrustScale)} · ` +
-            `${d.lives} ${d.lives === 1 ? 'Hülle' : 'Hüllen'}`,
+            `${d.lives} ${d.lives === 1 ? 'Schiff' : 'Schiffe'}`,
           value: `${d.scoreScale.toFixed(2).replace('.', ',')}× Punkte`,
-          detail: d.blurb + (d.id === current ? '   (aktuell eingestellt)' : ''),
+          detail: d.blurb + (d.id === current ? '   (zurzeit eingestellt)' : ''),
           action: () => pick(d.id),
         })),
-        { label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: back },
+        { label: 'Zurück', detail: 'Zurück zu den Einstellungen.', action: back },
       ],
       DIFFICULTIES.findIndex((d) => d.id === current),
     );
@@ -276,74 +250,108 @@ export class Screens {
   settings(
     save: SaveData,
     actions: {
+      difficulty: () => void;
       speed: () => void;
       touch: () => void;
       throttleMode: () => void;
       sound: () => void;
+      help: () => void;
+      reset: () => void;
       back: () => void;
     },
   ) {
+    const diff = DIFFICULTIES.find((d) => d.id === save.difficulty)!;
     const speed = gameSpeedById(save.gameSpeed);
     const nextSpeed =
       GAME_SPEEDS[(GAME_SPEEDS.findIndex((g) => g.id === speed.id) + 1) % GAME_SPEEDS.length];
     const touchLabel = { auto: 'Automatisch', on: 'Immer an', off: 'Aus' }[save.touch];
     const touchDetail = {
-      auto: 'Erscheint auf Geräten mit Touchscreen, sonst nicht.',
-      on: 'Die beiden Bildschirm-Paddles sind immer eingeblendet.',
+      auto: 'Wird auf Geräten mit Touchscreen eingeblendet, sonst nicht.',
+      on: 'Die beiden Regler am Bildschirmrand sind immer sichtbar.',
       off: 'Nur Tastatur und Gamepad.',
     }[save.touch];
 
     const host = this.panel(`
       <h2>EINSTELLUNGEN</h2>
       <p>
-        Das Tempo bestimmt, wie viel Spielzeit pro echter Sekunde vergeht. Es ist keine
-        Änderung der Physik – das Schiff fliegt sich exakt gleich, du bekommst nur mehr
+        Die Schwierigkeit bestimmt, wie viel dein Schiff aushält. Das Spieltempo bestimmt,
+        wie schnell die Zeit vergeht – das ändert nichts an der Physik, du bekommst nur mehr
         Millisekunden zum Reagieren.
       </p>
     `);
     this.mountMenu(host, [
       {
-        label: 'Tempo',
-        desc: `${speed.label} · ${Math.round(speed.scale * 100)} % der Normalgeschwindigkeit`,
+        label: 'Schwierigkeit',
+        desc: 'Schub, Schwerkraft, Anzahl der Schiffe und Landetoleranz',
+        value: diff.name,
+        detail: diff.blurb,
+        action: actions.difficulty,
+      },
+      {
+        label: 'Spieltempo',
+        desc: `${speed.label} · ${Math.round(speed.scale * 100)} % der normalen Geschwindigkeit`,
         value: 'ändern',
-        detail: `${speed.blurb}   Weiter zu: ${nextSpeed.label}.`,
+        detail: `${speed.blurb}   Nächste Stufe: ${nextSpeed.label}.`,
         action: actions.speed,
       },
       {
         label: 'Bildschirmsteuerung',
-        desc: 'Zwei Paddles zum Ziehen: links lenken, rechts Schub',
+        desc: 'Zwei Regler zum Ziehen: links lenken, rechts Schub geben',
         value: touchLabel,
         detail: touchDetail,
         action: actions.touch,
       },
       {
         label: 'Schub-Modus',
-        desc: 'Wie das rechte Paddle einen Druck versteht',
+        desc: 'Wie der rechte Regler eine Berührung auffasst',
         value: THROTTLE_MODE_LABEL[save.throttleMode],
         detail:
           save.throttleMode === 'push'
-            ? 'Aufdrücken gibt sofort volle Kraft – wie die Schub-Taste. Ziehst du vom ' +
-              'Druckpunkt nach unten, nimmst du Gas weg. Auch direkt im Flug über den ' +
-              'GAS-Knopf umschaltbar.'
-            : 'Kraft kommt nur aus dem Zugweg: aufdrücken tut nichts, hochziehen gibt Gas. ' +
-              'Auch direkt im Flug über den GAS-Knopf umschaltbar.',
+            ? 'Antippen gibt sofort vollen Schub – genau wie die Schub-Taste. Ziehst du vom ' +
+              'Berührungspunkt nach unten, nimmst du Gas weg. Lässt sich auch während des ' +
+              'Flugs umschalten: über die Taste ☰ oben rechts.'
+            : 'Der Schub kommt allein aus dem Zugweg: Antippen bewirkt nichts, Hochziehen ' +
+              'gibt Gas. Lässt sich auch während des Flugs umschalten: über die Taste ☰ ' +
+              'oben rechts.',
         action: actions.throttleMode,
       },
       {
         label: 'Ton',
-        desc: 'Triebwerk, Treffer und Menügeräusche',
+        desc: 'Triebwerk, Einschläge und Menügeräusche',
         value: save.muted ? 'Aus' : 'An',
         detail: 'Lässt sich im Spiel jederzeit mit M umschalten.',
         action: actions.sound,
       },
-      { label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: actions.back },
+      {
+        label: 'Steuerung',
+        desc: 'Tastatur, Gamepad und Touchscreen erklärt',
+        detail: 'Zeigt außerdem, wie Landen, Fracht, Treibstoff und Flow funktionieren.',
+        action: actions.help,
+      },
+      {
+        label: 'Fortschritt löschen',
+        desc: 'Setzt freigeschaltete Missionen, Bestzeiten und Punkte zurück',
+        value: 'endgültig',
+        detail: 'Das lässt sich nicht rückgängig machen.',
+        action: actions.reset,
+      },
+      { label: 'Zurück', detail: 'Zurück zum Hauptmenü.', action: actions.back },
     ]);
   }
 
-  levelSelect(save: SaveData, pick: (id: number) => void, back: () => void) {
+  levelSelect(
+    save: SaveData,
+    current: number,
+    pick: (id: number) => void,
+    password: () => void,
+    back: () => void,
+  ) {
     const host = this.panel(`
-      <h2>HÖHLE WÄHLEN</h2>
-      <p>Geschaffte Höhlen bleiben offen. Bestzeit und Medaille sind deine persönlichen Bestwerte.</p>
+      <h2>MISSION WÄHLEN</h2>
+      <p>
+        Geschaffte Missionen bleiben freigeschaltet. Bestzeit und Medaille sind deine
+        persönlichen Rekorde.
+      </p>
     `);
     const items: MenuItem[] = LEVELS.map((l) => {
       const rec = save.levels[l.id];
@@ -351,7 +359,7 @@ export class Screens {
       return {
         label: `${l.id.toString().padStart(2, '0')}  ${l.name}`,
         desc: locked
-          ? 'Noch gesperrt – schaffe erst die Höhle davor'
+          ? 'Noch gesperrt – schaffe zuerst die Mission davor'
           : rec?.cleared
             ? `Bestzeit ${fmt(rec.bestTime)} · ${num(rec.bestScore)} Punkte`
             : 'Freigeschaltet, noch nicht geschafft',
@@ -361,19 +369,25 @@ export class Screens {
         action: () => pick(l.id),
       };
     });
-    items.push({ label: 'Zurück', detail: 'Zurück zum Titelbildschirm.', action: back });
-    this.mountMenu(host, items, Math.max(0, save.unlocked - 1));
+    items.push({
+      label: 'Passwort eingeben',
+      desc: 'Schaltet eine Mission frei, deren Passwort du kennst',
+      detail: 'Das Passwort einer Mission bekommst du, sobald du die Mission davor schaffst.',
+      action: password,
+    });
+    items.push({ label: 'Zurück', detail: 'Zurück zur Einsatzbesprechung.', action: back });
+    this.mountMenu(host, items, Math.max(0, Math.min(current, save.unlocked) - 1));
   }
 
   password(submit: (pw: string) => void, back: () => void) {
     const host = this.panel(`
       <h2>PASSWORT</h2>
       <p>
-        Jede Höhle ab der zweiten hat eines. Du bekommst es angezeigt, sobald du die Höhle
-        davor geschafft hast.
+        Ab der zweiten Mission hat jede ein eigenes Passwort. Du bekommst es angezeigt,
+        sobald du die Mission davor geschafft hast.
       </p>
       <div class="pwfield"><input id="pw" maxlength="12" autocomplete="off" spellcheck="false" placeholder="········" /></div>
-      <p class="footnote">Enter zum Bestätigen · Esc für zurück</p>
+      <p class="footnote">Enter zum Bestätigen · Esc zum Zurückgehen</p>
     `);
     const input = host.querySelector<HTMLInputElement>('#pw')!;
     input.focus();
@@ -401,53 +415,57 @@ export class Screens {
     const host = this.panel(`
       <h2>STEUERUNG</h2>
       <div class="keycaps">
-        <div><kbd>A</kbd><kbd>←</kbd> <b>links drehen</b></div>
-        <div><kbd>D</kbd><kbd>→</kbd> <b>rechts drehen</b></div>
+        <div><kbd>A</kbd><kbd>←</kbd> <b>nach links drehen</b></div>
+        <div><kbd>D</kbd><kbd>→</kbd> <b>nach rechts drehen</b></div>
         <div><kbd>W</kbd><kbd>↑</kbd><kbd>Leer</kbd> <b>Schub</b></div>
         <div><kbd>S</kbd><kbd>↓</kbd> <b>Lage-Assistent</b></div>
-        <div><kbd>R</kbd> <b>Höhle neu starten</b></div>
+        <div><kbd>R</kbd> <b>Mission neu starten</b></div>
         <div><kbd>Esc</kbd><kbd>P</kbd> <b>Pause</b></div>
         <div><kbd>M</kbd> <b>Ton an/aus</b></div>
-        <div><kbd>F3</kbd> <b>Technik-Anzeige</b></div>
+        <div><kbd>F3</kbd> <b>Technikanzeige</b></div>
       </div>
       <p class="hint">
-        Der Schub geht immer in Nasenrichtung. Zum Bremsen musst du dich erst umdrehen –
-        dieses Umdrehen ist das ganze Spiel.
+        Der Schub wirkt immer in Richtung der Schiffsnase. Zum Bremsen musst du dich also
+        erst umdrehen – dieses Umdrehen ist der Kern des Spiels.
       </p>
       <div class="grid2">
         <div>
           <p><b>Landen</b><br />
-            Die Anzeige ist grün, solange Tempo und Neigung beide im Rahmen sind. Gelb heißt
-            grenzwertig. Rot heißt, du wirst gleich zu Schrott.</p>
+            Die Landeanzeige ist grün, solange Geschwindigkeit und Neigung im Rahmen
+            liegen. Gelb bedeutet grenzwertig, Rot bedeutet: gleich zerschellst du.</p>
           <p><b>Fracht</b><br />
-            Flieg eine Kiste an, um sie aufzunehmen – bis zu drei gleichzeitig. Jede Kiste
-            an Bord macht die Hülle schwerer und träger, alles auf einmal zu schleppen ist
-            also eine echte Wette. Auf der blauen Basis landen lädt ab; die Höhle ist
-            geschafft, sobald alles daheim ist.</p>
+            Flieg eine Kiste an, um sie aufzunehmen – bis zu drei Stück gleichzeitig. Jede
+            Kiste an Bord macht das Schiff schwerer und träger; alles auf einmal zu
+            transportieren ist deshalb ein echtes Risiko. Auf der blauen Basis landen lädt
+            ab. Die Mission ist geschafft, sobald die gesamte Fracht dort ist.</p>
         </div>
         <div>
           <p><b>Treibstoff</b><br />
-            Das Triebwerk kostet Sprit, und zwar so viel, wie du Gas gibst. Grüne Felder
-            betanken dich, solange du darauf stehst. Ein leerer Tank ist kein sofortiger
-            Tod, aber die Schwerkraft hat das letzte Wort.</p>
+            Das Triebwerk verbraucht so viel Treibstoff, wie du Gas gibst. Auf grünen
+            Feldern tankst du auf, solange du darauf stehst. Ein leerer Tank bedeutet nicht
+            sofort das Ende – aber die Schwerkraft hat das letzte Wort.</p>
           <p><b>Flow</b><br />
-            Wer mit Tempo dicht am Fels entlangschrammt, füllt die Flow-Anzeige. Sie
-            vervielfacht alle Punkte und tropft Sprit zurück in den Tank. Die schnellste
-            Linie ist die gefährliche – genau das ist der Punkt.</p>
+            Wer schnell fliegt und dabei dicht am Fels bleibt, füllt die Flow-Anzeige. Sie
+            vervielfacht alle Punkte und gibt nach und nach Treibstoff zurück. Die
+            schnellste Linie ist die gefährlichste – genau darum geht es.</p>
         </div>
       </div>
       <p class="footnote">
-        Gamepads gehen auch: linker Stick oder Steuerkreuz zum Drehen, A oder rechter
-        Trigger für Schub – der Trigger ist stufenlos. Auf dem Touchscreen bekommst du zwei
-        Paddles: die linke Bildschirmhälfte lenkt, die rechte gibt Schub. Du drückst
-        irgendwo in der Hälfte auf und ziehst; es zählt, wie weit du ziehst, nicht wo du
-        angefasst hast. Lenken ist stufenlos, du kannst also fein dosieren.
+        Gamepads werden ebenfalls unterstützt: linker Stick oder Steuerkreuz zum Drehen, A
+        oder rechter Trigger für Schub – der Trigger arbeitet stufenlos. Auf dem Touchscreen
+        bekommst du zwei Regler: die linke Bildschirmhälfte lenkt, die rechte gibt Schub. Du
+        berührst irgendeine Stelle der jeweiligen Hälfte und ziehst; entscheidend ist, wie
+        weit du ziehst, nicht wo du das Display berührst. Das Lenken ist stufenlos und lässt
+        sich deshalb fein dosieren. Lage-Assistent, Pause und die Umschaltung des
+        Schub-Modus liegen hinter der Taste ☰ oben rechts – so steht keine Taste mitten in
+        der Höhle.
       </p>
       <p class="footnote">
-        Der Schub hat zwei Modi, umschaltbar mit dem GAS-Knopf zwischen den Paddles oder in
-        den Einstellungen. <b>PUSH</b> (Standard): einfach aufdrücken gibt volle Kraft, und
-        wer feiner dosieren will, zieht vom Druckpunkt nach unten. <b>REGLER</b>: die Kraft
-        kommt allein aus dem Zugweg, Schweben liegt bei rund einem Drittel davon.
+        Für den Schub gibt es zwei Modi. Du schaltest sie mit der GAS-Taste im Tastenfach
+        oder in den Einstellungen um. <b>PUSH</b> (Standard): Antippen gibt sofort
+        vollen Schub, und wer feiner dosieren möchte, zieht vom Berührungspunkt nach unten.
+        <b>REGLER</b>: Der Schub kommt allein aus dem Zugweg; zum Schweben brauchst du etwa
+        ein Drittel davon.
       </p>
     `);
     this.mountMenu(host, [{ label: 'Zurück', action: back }]);
@@ -459,12 +477,13 @@ export class Screens {
     hint: string,
     best: { time: number; medal: Medal } | null,
     go: () => void,
+    choose: () => void,
     back: () => void,
   ) {
     const level = LEVELS[levelId - 1];
     const crates = level.objects.filter((o) => o.t === 'cargo').length;
     const host = this.panel(`
-      <span class="badge">HÖHLE ${levelId.toString().padStart(2, '0')} VON ${LEVELS.length}</span>
+      <span class="badge">MISSION ${levelId.toString().padStart(2, '0')} VON ${LEVELS.length}</span>
       <h2 style="margin-top:.7em">${esc(level.name.toUpperCase())}</h2>
       <p class="hint">${esc(hint)}</p>
       <div class="keycaps">
@@ -476,7 +495,12 @@ export class Screens {
     `);
     this.mountMenu(host, [
       { label: 'Losfliegen', value: 'Enter', action: go },
-      { label: 'Zurück zum Titel', action: back },
+      {
+        label: 'Andere Mission wählen',
+        desc: 'Alle freigeschalteten Missionen mit Bestzeit und Medaille',
+        action: choose,
+      },
+      { label: 'Zurück zum Hauptmenü', action: back },
     ]);
   }
 
@@ -493,11 +517,16 @@ export class Screens {
     `);
     this.mountMenu(host, [
       { label: 'Weiterfliegen', value: 'Esc', action: resume },
-      { label: 'Höhle neu starten', desc: 'Von vorn, mit vollem Tank', value: 'R', action: restart },
+      {
+        label: 'Mission neu starten',
+        desc: 'Von vorn, mit vollem Tank',
+        value: 'R',
+        action: restart,
+      },
       { label: 'Ton', desc: 'Triebwerk und Menügeräusche', value: muted ? 'Aus' : 'An', action: toggleMute },
       {
-        label: 'Lauf abbrechen',
-        desc: 'Zurück zum Titel – der Fortschritt bleibt gespeichert',
+        label: 'Mission abbrechen',
+        desc: 'Zurück zum Hauptmenü – dein Fortschritt bleibt gespeichert',
         action: quit,
       },
     ]);
@@ -524,12 +553,12 @@ export class Screens {
       ['Ohne Verluste', breakdown.flawless],
     ];
     const host = this.panel(`
-      <span class="badge">HÖHLE GESCHAFFT</span>
+      <span class="badge">MISSION GESCHAFFT</span>
       <h2 style="margin-top:.7em">${esc(level.name.toUpperCase())}</h2>
       <p>
         <span class="medal ${medal}">${MEDAL_DE[medal].toUpperCase()}</span>
         &nbsp; ${fmt(time)} bei einer Zielzeit von ${fmt(level.par)}
-        &nbsp;·&nbsp; ${deaths} ${deaths === 1 ? 'Hülle' : 'Hüllen'} verloren
+        &nbsp;·&nbsp; ${deaths} ${deaths === 1 ? 'Schiff' : 'Schiffe'} verloren
       </p>
       <table class="scoretable">
         ${rows
@@ -538,50 +567,51 @@ export class Screens {
           .join('')}
         <tr class="total"><td>Gesamt</td><td>${num(breakdown.total)}</td></tr>
       </table>
-      ${nextPassword ? `<p class="hint">Passwort für die nächste Höhle: <b>${esc(nextPassword)}</b></p>` : ''}
+      ${nextPassword ? `<p class="hint">Passwort für die nächste Mission: <b>${esc(nextPassword)}</b></p>` : ''}
     `);
     const items: MenuItem[] = [];
-    if (levelId < LEVELS.length) items.push({ label: 'Nächste Höhle', value: 'Enter', action: next });
+    if (levelId < LEVELS.length) items.push({ label: 'Nächste Mission', value: 'Enter', action: next });
     items.push({
-      label: 'Nochmal fliegen',
-      desc: 'Für eine bessere Zeit oder Medaille',
+      label: 'Noch einmal fliegen',
+      desc: 'Für eine bessere Zeit oder eine bessere Medaille',
       value: 'R',
       action: replay,
     });
-    items.push({ label: 'Zurück zum Titel', action: quit });
+    items.push({ label: 'Zurück zum Hauptmenü', action: quit });
     this.mountMenu(host, items);
   }
 
   gameOver(levelId: number, score: number, reason: string, retry: () => void, quit: () => void) {
     const host = this.panel(`
-      <h2 style="color:var(--bad)">LAUF BEENDET</h2>
+      <h2 style="color:var(--bad)">MISSION GESCHEITERT</h2>
       <p>${esc(reason)}</p>
-      <p>Du bist in <b>${esc(LEVELS[levelId - 1].name)}</b> geblieben, mit ${num(score)} Punkten auf dem Konto.</p>
+      <p>Du bist in <b>${esc(LEVELS[levelId - 1].name)}</b> gescheitert, mit ${num(score)} Punkten auf dem Konto.</p>
       <p class="footnote">
-        Der Fortschritt bis zu dieser Höhle ist gespeichert. Verloren ist nur der Lauf.
+        Dein Fortschritt bis zu dieser Mission ist gespeichert. Verloren ist nur dieser
+        Versuch.
       </p>
     `);
     this.mountMenu(host, [
-      { label: 'Höhle nochmal fliegen', value: 'Enter', action: retry },
-      { label: 'Zurück zum Titel', action: quit },
+      { label: 'Mission noch einmal fliegen', value: 'Enter', action: retry },
+      { label: 'Zurück zum Hauptmenü', action: quit },
     ]);
   }
 
   campaignComplete(save: SaveData, quit: () => void) {
     const golds = Object.values(save.levels).filter((l) => l.medal === 'gold').length;
     const host = this.panel(`
-      <h1>ALLE HÖHLEN GEFLOGEN</h1>
-      <p class="tagline">Zwanzig von zwanzig. Die Fracht ist daheim.</p>
+      <h1>ALLE MISSIONEN GEFLOGEN</h1>
+      <p class="tagline">Zwanzig von zwanzig. Die Fracht ist zu Hause.</p>
       <div class="keycaps">
         <div><b>Punkte gesamt</b> ${num(save.totalScore)}</div>
-        <div><b>Gold-Läufe</b> ${golds} von ${LEVELS.length}</div>
-        <div><b>Verlorene Hüllen</b> ${num(save.wrecks)}</div>
+        <div><b>Gold-Medaillen</b> ${golds} von ${LEVELS.length}</div>
+        <div><b>Verlorene Schiffe</b> ${num(save.wrecks)}</div>
       </div>
       <p>
-        Es gibt immer noch eine härtere Stufe, und jede Höhle hat eine Gold-Zeit, die du dir
-        noch nicht geholt hast.
+        Es gibt immer noch eine höhere Schwierigkeitsstufe – und in jeder Mission eine
+        Gold-Zeit, die du dir noch nicht geholt hast.
       </p>
     `);
-    this.mountMenu(host, [{ label: 'Zurück zum Titel', action: quit }]);
+    this.mountMenu(host, [{ label: 'Zurück zum Hauptmenü', action: quit }]);
   }
 }

@@ -44,7 +44,7 @@ if (!canvas) {
   } catch (err) {
     console.error(err);
     fatal(
-      'WebGL konnte nicht gestartet werden. Gravity Hauler braucht einen Browser mit hardwarebeschleunigtem WebGL 2.',
+      'WebGL konnte nicht gestartet werden. Gravity Pilot benötigt einen Browser mit hardwarebeschleunigtem WebGL 2.',
     );
   }
 }

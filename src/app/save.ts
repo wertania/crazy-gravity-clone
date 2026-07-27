@@ -14,7 +14,9 @@ import {
 } from '../sim/config';
 import type { ThrottleMode } from '../ui/touch';
 
-const KEY = 'gravity-hauler.save.v1';
+const KEY = 'gravity-pilot.save.v1';
+/** The name the game shipped under before it was called Gravity Pilot. */
+const LEGACY_KEY = 'gravity-hauler.save.v1';
 
 export interface LevelRecord {
   bestScore: number;
@@ -68,7 +70,8 @@ export function load(): SaveData {
   const s = storage();
   if (!s) return { ...DEFAULT, levels: {} };
   try {
-    const raw = s.getItem(KEY);
+    // Nobody should lose twenty caves of progress to a rename.
+    const raw = s.getItem(KEY) ?? s.getItem(LEGACY_KEY);
     if (!raw) return { ...DEFAULT, levels: {} };
     const parsed = JSON.parse(raw) as Partial<SaveData>;
     return { ...DEFAULT, ...parsed, levels: parsed.levels ?? {} };
@@ -115,6 +118,7 @@ export function reset(): SaveData {
   if (s) {
     try {
       s.removeItem(KEY);
+      s.removeItem(LEGACY_KEY);
     } catch {
       /* ignore */
     }

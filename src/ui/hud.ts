@@ -89,7 +89,7 @@ export class Hud {
     this.rotate = document.createElement('div');
     this.rotate.className = 'rotate-hint';
     this.rotate.hidden = true;
-    this.rotate.textContent = '↻ Quer siehst du mehr von der Höhle';
+    this.rotate.textContent = '↻ Im Querformat siehst du mehr von der Höhle';
     document.body.appendChild(this.rotate);
   }
 

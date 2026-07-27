@@ -207,16 +207,7 @@ export class Game {
     this.audio.ambience(0.45);
     this.screens.title(this.save, {
       play: () => this.showBriefing(Math.min(this.save.unlocked, LEVELS.length)),
-      levels: () => this.showLevels(),
-      difficulty: () => this.showDifficulty(),
       settings: () => this.showSettings(),
-      password: () => this.showPassword(),
-      help: () => this.showHelp(),
-      reset: () => {
-        this.save = Save.reset();
-        this.applySettings();
-        this.showTitle();
-      },
     });
   }
 
@@ -230,15 +221,16 @@ export class Game {
         this.applySettings();
         // The active world caches difficulty-scaled values, so rebuild it.
         this.loadLevel(this.levelId);
-        this.showTitle();
+        this.showSettings();
       },
-      () => this.showTitle(),
+      () => this.showSettings(),
     );
   }
 
   private showSettings() {
     this.mode = 'settings';
     this.screens.settings(this.save, {
+      difficulty: () => this.showDifficulty(),
       speed: () => {
         // Cycle rather than open a submenu: four options is not worth a screen.
         const i = GAME_SPEEDS.findIndex((g) => g.id === this.save.gameSpeed);
@@ -267,6 +259,13 @@ export class Game {
         this.toggleMute();
         this.showSettings();
       },
+      help: () => this.showHelp(),
+      reset: () => {
+        this.save = Save.reset();
+        this.applySettings();
+        this.loadLevel(1);
+        this.showSettings();
+      },
       back: () => this.showTitle(),
     });
   }
@@ -275,8 +274,10 @@ export class Game {
     this.mode = 'levels';
     this.screens.levelSelect(
       this.save,
+      this.levelId,
       (id) => this.showBriefing(id),
-      () => this.showTitle(),
+      () => this.showPassword(),
+      () => this.showBriefing(this.levelId),
     );
   }
 
@@ -300,14 +301,14 @@ export class Game {
       },
       () => {
         this.input.captureText = false;
-        this.showTitle();
+        this.showLevels();
       },
     );
   }
 
   private showHelp() {
     this.mode = 'help';
-    this.screens.help(() => this.showTitle());
+    this.screens.help(() => this.showSettings());
   }
 
   private showBriefing(id: number) {
@@ -326,6 +327,7 @@ export class Game {
       spec.hint,
       rec?.cleared ? { time: rec.bestTime, medal: rec.medal } : null,
       () => this.enterPlaying(),
+      () => this.showLevels(),
       () => this.showTitle(),
     );
   }
@@ -413,8 +415,8 @@ export class Game {
     this.audio.ambience(0.4);
     const reason =
       world.time > world.timeLimit && world.diff.hardTimeLimit
-        ? 'Die Zeit war um, bevor die Fracht daheim war.'
-        : 'Die letzte Hülle liegt in Einzelteilen auf dem Fels.';
+        ? 'Die Zeit war abgelaufen, bevor die Fracht zu Hause war.'
+        : 'Das letzte Schiff liegt in Einzelteilen auf dem Fels.';
     this.screens.gameOver(
       this.levelId,
       world.score,
@@ -422,6 +424,27 @@ export class Game {
       () => this.restartLevel(),
       () => this.showTitle(),
     );
+  }
+
+  /**
+   * Esc/back walks one step up the menu tree rather than jumping to the title,
+   * so the submenus feel like submenus.
+   */
+  private goBack() {
+    switch (this.mode) {
+      case 'title':
+        break;
+      case 'difficulty':
+      case 'help':
+        this.showSettings();
+        break;
+      case 'levels':
+        this.showBriefing(this.levelId);
+        break;
+      default:
+        this.showTitle();
+        break;
+    }
   }
 
   private toggleMute() {
@@ -465,7 +488,7 @@ export class Game {
         else if (c === 'down') this.screens.move(1);
         else if (c === 'confirm') this.screens.confirm();
         else if (c === 'back' || c === 'pause') {
-          if (this.mode !== 'title') this.showTitle();
+          this.goBack();
         } else if (c === 'restart' && this.mode === 'cleared') {
           this.restartLevel();
         }
@@ -503,7 +526,7 @@ export class Game {
         p.burst(e.x, e.y, 90, 16, 0xffb060, 0.5, 1.0);
         p.burst(e.x, e.y, 50, 9, 0xff4a3c, 0.7, 1.3);
         p.burst(e.x, e.y, 30, 22, 0xffffff, 0.3, 0.4);
-        this.hud.flash('HÜLLE VERLOREN', 1.2);
+        this.hud.flash('SCHIFF VERLOREN', 1.2);
         break;
       case 'land':
         p.burst(e.x, e.y - 0.4, 14, 4, 0x9fd8ff, 0.3, 0.45);
