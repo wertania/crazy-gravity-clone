@@ -1,4 +1,4 @@
-# Gravity Hauler
+# Gravity Pilot
 
 A gravity cave flyer built with Three.js and TypeScript — a modern take on the
 1996 Windows shareware game *Crazy Gravity* by Axel Meierhöfer (XLM Software),
@@ -15,7 +15,7 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 <table>
 <tr>
 <td><img src="shots/boot.png" alt="Loading screen: ship silhouette, progress bar, status line" /></td>
-<td><img src="shots/title.png" alt="Title menu: two-line rows with a label, an explanation and a value chip" /></td>
+<td><img src="shots/title.png" alt="Title menu: Missionen fliegen and Einstellungen, each a two-line row with a label and an explanation" /></td>
 </tr>
 </table>
 
@@ -61,6 +61,27 @@ npm run build          # type-check + production bundle into dist/
 npm run preview        # serve the built bundle
 ```
 
+### Menus
+
+The main menu is deliberately two rows deep and nothing more:
+
+```
+Missionen fliegen  ->  briefing for the mission you are on
+                         Losfliegen
+                         Andere Mission wählen  ->  mission picker
+                                                      20 missions
+                                                      Passwort eingeben
+                         Zurück zum Hauptmenü
+Einstellungen      ->  Schwierigkeit  ->  five tiers
+                       Spieltempo, Bildschirmsteuerung, Schub-Modus, Ton
+                       Steuerung  ->  how-to-fly screen
+                       Fortschritt löschen
+```
+
+Password unlocking sits with the mission picker, where you are already looking
+at the list of missions, rather than as a separate main-menu entry.
+<kbd>Esc</kbd> walks one step back up this tree instead of jumping to the title.
+
 ### Controls
 
 | | |
@@ -69,10 +90,10 @@ npm run preview        # serve the built bundle
 | <kbd>D</kbd> / <kbd>→</kbd> | rechts drehen — rotate right |
 | <kbd>W</kbd> / <kbd>↑</kbd> / <kbd>Space</kbd> | Schub — thrust along the nose |
 | <kbd>S</kbd> / <kbd>↓</kbd> | Lage-Assistent — auto-level assist |
-| <kbd>R</kbd> | Höhle neu starten — restart the cave |
+| <kbd>R</kbd> | Mission neu starten — restart the mission |
 | <kbd>Esc</kbd> / <kbd>P</kbd> | Pause |
 | <kbd>M</kbd> | Ton an/aus — mute |
-| <kbd>F3</kbd> | Technik-Anzeige — debug overlay |
+| <kbd>F3</kbd> | Technikanzeige — debug overlay |
 
 Gamepads work too — left stick or d-pad to turn, A or the right trigger to
 thrust. The trigger is analog.
@@ -83,12 +104,12 @@ press anywhere in the zone and drag: sideways on the left to steer, upwards on
 the right for power. The mapping is *relative*, so there is no invisible origin
 to find first and a thumb landing beside the drawn track works exactly the same.
 Both are analog, both spring back when you let go, and they work simultaneously
-as two thumbs. Force them on or off under Settings. Landscape gives you
+as two thumbs. Force them on or off under Einstellungen. Landscape gives you
 noticeably more cave to see; portrait is playable and the game says so once,
 rather than blocking the screen.
 
 The throttle paddle has **two modes**, switched with the GAS button between the
-paddles or under Settings → Schub-Modus:
+paddles or under Einstellungen → Schub-Modus:
 
 | Mode | What a press does |
 |---|---|
@@ -100,21 +121,21 @@ first, and that turn is the entire game.
 
 ### Making it easier
 
-Two independent dials, both under Settings and Difficulty:
+Two independent dials, both under Einstellungen (Spieltempo and Schwierigkeit):
 
-- **Pace** (default *Gentle*, 85%) scales how much simulated time passes per
+- **Spieltempo** (default *Sanft*, 85%) scales how much simulated time passes per
   real second. It is not a physics change — gravity, thrust and the speed cap
   keep their exact relationships and the ship handles identically. You simply
   get more real milliseconds to react in, which is the most effective and least
   balance-breaking difficulty dial a reaction game has.
-- **Difficulty** (default *Rookie*) changes the hull itself. The two biggest
+- **Schwierigkeit** (default *Neuling*) changes the ship itself. The two biggest
   dials are **top speed** and **thrust**: Rookie flies at 58% speed and 70%
   thrust, Legend at 118% and 112%. A slower ship simply cannot build up a
   velocity it has no room to shed, so most crashes stop happening rather than
-  being survived. Hulls, fuel, gravity, hazard tempo, landing tolerance and the
+  being survived. Ships, fuel, gravity, hazard tempo, landing tolerance and the
   score multiplier move with it. It never changes the level list.
 
-  | tier | speed | thrust | hulls | score |
+  | tier | speed | thrust | ships | score |
   |---|---|---|---|---|
   | Rookie | 58% | 70% | 9 | 0.60× |
   | Pilot | 76% | 84% | 6 | 1.00× |
@@ -130,7 +151,7 @@ Faithful to the original's design:
 
 - **Rotate-and-thrust only.** No directional control, no braking key.
 - **Wall contact is death.** Pads are the only soft surface.
-- **The full resource set:** fuel, a time target, a hull count, coloured keys
+- **The full resource set:** fuel, a time target, a ship count, coloured keys
   and gates, freight waiting versus freight aboard, and the green / yellow / red
   landing indicator.
 - **Five difficulty tiers, twenty caves, and per-level passwords.**
@@ -144,11 +165,11 @@ Deliberately modern:
   nothing for skirting it; here the fastest line is also the most dangerous one,
   which turns a punishing game into a risk/reward loop without softening it.
 - **Cargo mass is a decision.** You can carry three crates, but each one makes
-  the hull heavier and lazier. Haul all three in one trip or shuttle twice —
+  the ship heavier and lazier. Haul all three in one trip or shuttle twice —
   that is a real choice, not a formality.
 - **Retry latency near zero.** <kbd>R</kbd> restarts instantly, respawn after a
   crash takes under a second, and delivered freight and collected keys stay
-  banked. Death costs a hull, not your progress.
+  banked. Death costs a ship, not your progress.
 - **Difficulty never gates content.** Rookie plays all twenty caves; the tiers
   change gravity, fuel, hazard tempo and landing tolerance — and your score
   multiplier — not the level list.
@@ -424,8 +445,8 @@ tab. The image is a two-stage build: Node builds `dist`, nginx serves it, and
 the ~300 MB of `node_modules` stays behind in the build stage.
 
 ```bash
-docker build -t gravity-hauler .
-docker run --rm -p 8080:80 gravity-hauler   # http://localhost:8080
+docker build -t gravity-pilot .
+docker run --rm -p 8080:80 gravity-pilot   # http://localhost:8080
 ```
 
 or, the same thing through compose:

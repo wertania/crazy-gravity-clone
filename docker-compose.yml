@@ -9,11 +9,11 @@
 # the `ports` block there or it will try to publish 8080 on the host as well.
 
 services:
-  gravity-hauler:
+  gravity-pilot:
     build:
       context: .
       dockerfile: Dockerfile
-    image: gravity-hauler:latest
+    image: gravity-pilot:latest
     restart: unless-stopped
     ports:
       - '8080:80'

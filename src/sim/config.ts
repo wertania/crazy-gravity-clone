@@ -127,7 +127,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'rookie',
     name: 'Neuling',
-    blurb: 'Langsam, schwer, nachsichtig. Volle Tanks, träge Gefahren. Zum Lernen.',
+    blurb: 'Langsam, robust und nachsichtig. Volle Tanks, träge Gefahren. Ideal zum Lernen.',
     lives: 9,
     gravityScale: 0.78,
     fuelScale: 2.0,
@@ -142,7 +142,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'pilot',
     name: 'Pilot',
-    blurb: 'Spürbar flotter als Neuling. Faire Reserven, ehrliche Höhlen.',
+    blurb: 'Spürbar flotter als Neuling. Faire Reserven, keine gemeinen Überraschungen.',
     lives: 6,
     gravityScale: 0.92,
     fuelScale: 1.3,
@@ -157,7 +157,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'ace',
     name: 'Ass',
-    blurb: 'Volles Tempo, voller Schub. Landungen werden anspruchsvoll.',
+    blurb: 'Volles Tempo, voller Schub. Die Landungen werden anspruchsvoll.',
     lives: 4,
     gravityScale: 1.0,
     fuelScale: 1.0,
@@ -172,7 +172,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'veteran',
     name: 'Veteran',
-    blurb: 'Schwere Hülle, knappe Tanks, die Uhr ist ein echter Gegner.',
+    blurb: 'Schweres Schiff, knappe Tanks – und die Uhr wird zum echten Gegner.',
     lives: 3,
     gravityScale: 1.12,
     fuelScale: 0.85,
@@ -187,7 +187,7 @@ export const DIFFICULTIES: Difficulty[] = [
   {
     id: 'legend',
     name: 'Legende',
-    blurb: 'Eine Hülle. Jede Gefahr wach. Ohne Flow geht hier nichts.',
+    blurb: 'Ein einziges Schiff, alle Gefahren aktiv. Ohne Flow geht hier gar nichts.',
     lives: 1,
     gravityScale: 1.22,
     fuelScale: 0.72,
@@ -229,10 +229,10 @@ export interface GameSpeedOption {
 export type GameSpeedId = 'calm' | 'gentle' | 'standard' | 'brisk';
 
 export const GAME_SPEEDS: GameSpeedOption[] = [
-  { id: 'calm', label: 'Ruhig', scale: 0.7, blurb: '70 % Tempo. Alles passiert mit reichlich Vorlauf.' },
+  { id: 'calm', label: 'Ruhig', scale: 0.7, blurb: '70 % Tempo. Alles kommt mit reichlich Vorwarnung auf dich zu.' },
   { id: 'gentle', label: 'Sanft', scale: 0.85, blurb: '85 % Tempo. Die Voreinstellung: nachsichtig, ohne zäh zu wirken.' },
-  { id: 'standard', label: 'Normal', scale: 1.0, blurb: '100 % Tempo. So wurden die Höhlen abgestimmt.' },
-  { id: 'brisk', label: 'Flott', scale: 1.15, blurb: '115 % Tempo. Alles kommt früher auf dich zu.' },
+  { id: 'standard', label: 'Normal', scale: 1.0, blurb: '100 % Tempo. Auf diese Geschwindigkeit sind die Missionen abgestimmt.' },
+  { id: 'brisk', label: 'Flott', scale: 1.15, blurb: '115 % Tempo. Alles kommt deutlich früher auf dich zu.' },
 ];
 
 export const DEFAULT_GAME_SPEED: GameSpeedId = 'gentle';

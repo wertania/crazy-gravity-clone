@@ -1,9 +1,9 @@
 {
-  "name": "gravity-hauler",
+  "name": "gravity-pilot",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Gravity Hauler - a modern Three.js cave-flyer in the spirit of Thrust / Crazy Gravity",
+  "description": "Gravity Pilot - a modern Three.js cave-flyer in the spirit of Thrust / Crazy Gravity",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
