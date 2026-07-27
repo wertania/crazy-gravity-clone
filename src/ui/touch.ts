@@ -30,6 +30,13 @@
  *
  * Each zone captures its own pointer, so two thumbs work simultaneously and a
  * finger that wanders outside its zone keeps control of it.
+ *
+ * The three auxiliary buttons - throttle mode, attitude assist and pause - used
+ * to sit in a column between the paddles, which on a landscape phone put them
+ * squarely in the middle of the playfield. They now live behind a single toggle
+ * in the top-right corner, over the frame edge rather than over the cave. The
+ * tray stays open until it is closed again, so the assist is still holdable
+ * mid-flight for anyone who wants it.
  */
 
 export interface TouchState {
@@ -86,6 +93,8 @@ export class TouchControls {
   private readonly pauseBtn: HTMLElement;
   private readonly modeBtn: HTMLElement;
   private readonly modeValue: HTMLElement;
+  private readonly menuBtn: HTMLElement;
+  private readonly tray: HTMLElement;
 
   private turn = 0;
   private throttle = 0;
@@ -112,12 +121,17 @@ export class TouchControls {
           <span class="touch-label">◄ ZIEHEN ZUM LENKEN ►</span>
         </div>
       </div>
-      <div class="touch-mid">
-        <button class="touch-btn touch-btn-mode" data-role="mode" type="button">
-          <small>GAS</small><span data-role="mode-value">PUSH</span>
-        </button>
-        <button class="touch-btn" data-role="level" type="button" aria-label="Lage-Assistent">LAGE</button>
-        <button class="touch-btn" data-role="pause" type="button" aria-label="Pause">II</button>
+      <div class="touch-menu" data-role="menu">
+        <button class="touch-btn touch-menu-btn" data-role="menu-toggle" type="button"
+                aria-expanded="false" aria-controls="touch-tray"
+                aria-label="Zusatztasten anzeigen">&#9776;</button>
+        <div class="touch-tray" id="touch-tray" data-role="tray" hidden>
+          <button class="touch-btn touch-btn-mode" data-role="mode" type="button">
+            <small>GAS</small><span data-role="mode-value">PUSH</span>
+          </button>
+          <button class="touch-btn" data-role="level" type="button" aria-label="Lage-Assistent">LAGE</button>
+          <button class="touch-btn" data-role="pause" type="button" aria-label="Pause">II</button>
+        </div>
       </div>
       <div class="touch-zone touch-zone-right" data-role="throttle">
         <div class="touch-throttle" role="slider" aria-label="Schub"
@@ -150,6 +164,8 @@ export class TouchControls {
     this.pauseBtn = pick('[data-role="pause"]');
     this.modeBtn = pick('[data-role="mode"]');
     this.modeValue = pick('[data-role="mode-value"]');
+    this.menuBtn = pick('[data-role="menu-toggle"]');
+    this.tray = pick('[data-role="tray"]');
 
     this.wirePaddle(this.steer, 'x');
     this.wirePaddle(this.throttlePaddle, 'y');
@@ -247,6 +263,7 @@ export class TouchControls {
     this.steer.zone.classList.remove('engaged');
     this.throttlePaddle.zone.classList.remove('engaged');
     this.levelBtn.classList.remove('held');
+    this.setTrayOpen(false);
     this.paint();
   }
 
@@ -340,7 +357,33 @@ export class TouchControls {
     p.zone.addEventListener('lostpointercapture', end);
   }
 
+  /** Whether the auxiliary button tray is open. */
+  get trayOpen(): boolean {
+    return !this.tray.hidden;
+  }
+
+  setTrayOpen(open: boolean) {
+    this.tray.hidden = !open;
+    this.menuBtn.setAttribute('aria-expanded', String(open));
+    this.menuBtn.setAttribute(
+      'aria-label',
+      open ? 'Zusatztasten ausblenden' : 'Zusatztasten anzeigen',
+    );
+    this.menuBtn.classList.toggle('is-open', open);
+    // A tray that closes while LAGE is held would leave the assist stuck on.
+    if (!open && this.levelOut) {
+      this.levelOut = false;
+      this.levelBtn.classList.remove('held');
+    }
+  }
+
   private wireButtons() {
+    this.menuBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.setTrayOpen(!this.trayOpen);
+    });
+
     const hold = (on: boolean) => {
       this.levelOut = on;
       this.levelBtn.classList.toggle('held', on);

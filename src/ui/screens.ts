@@ -309,9 +309,10 @@ export class Screens {
           save.throttleMode === 'push'
             ? 'Antippen gibt sofort vollen Schub – genau wie die Schub-Taste. Ziehst du vom ' +
               'Berührungspunkt nach unten, nimmst du Gas weg. Lässt sich auch während des ' +
-              'Flugs über die GAS-Taste umschalten.'
+              'Flugs umschalten: über die Taste ☰ oben rechts.'
             : 'Der Schub kommt allein aus dem Zugweg: Antippen bewirkt nichts, Hochziehen ' +
-              'gibt Gas. Lässt sich auch während des Flugs über die GAS-Taste umschalten.',
+              'gibt Gas. Lässt sich auch während des Flugs umschalten: über die Taste ☰ ' +
+              'oben rechts.',
         action: actions.throttleMode,
       },
       {
@@ -455,11 +456,13 @@ export class Screens {
         bekommst du zwei Regler: die linke Bildschirmhälfte lenkt, die rechte gibt Schub. Du
         berührst irgendeine Stelle der jeweiligen Hälfte und ziehst; entscheidend ist, wie
         weit du ziehst, nicht wo du das Display berührst. Das Lenken ist stufenlos und lässt
-        sich deshalb fein dosieren.
+        sich deshalb fein dosieren. Lage-Assistent, Pause und die Umschaltung des
+        Schub-Modus liegen hinter der Taste ☰ oben rechts – so steht keine Taste mitten in
+        der Höhle.
       </p>
       <p class="footnote">
-        Für den Schub gibt es zwei Modi. Du schaltest sie mit der GAS-Taste zwischen den
-        Reglern oder in den Einstellungen um. <b>PUSH</b> (Standard): Antippen gibt sofort
+        Für den Schub gibt es zwei Modi. Du schaltest sie mit der GAS-Taste im Tastenfach
+        oder in den Einstellungen um. <b>PUSH</b> (Standard): Antippen gibt sofort
         vollen Schub, und wer feiner dosieren möchte, zieht vom Berührungspunkt nach unten.
         <b>REGLER</b>: Der Schub kommt allein aus dem Zugweg; zum Schweben brauchst du etwa
         ein Drittel davon.

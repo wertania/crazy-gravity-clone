@@ -29,7 +29,7 @@ pick up freight and put it down softly on the base pad. The rock is always fatal
 <td><img src="shots/level20-finale.png" alt="Cave 20, Eventide" /></td>
 </tr>
 <tr>
-<td><img src="shots/phone-landscape.png" alt="On a phone in landscape: steering paddle bottom left, throttle paddle bottom right held open, HUD stacked at the top" /></td>
+<td><img src="shots/phone-landscape.png" alt="On a phone in landscape: steering paddle bottom left, throttle paddle bottom right, HUD stacked at the top and the auxiliary button tray open from the top-right corner" /></td>
 <td><img src="shots/difficulty.png" alt="Difficulty screen listing speed and thrust per tier" /></td>
 </tr>
 </table>
@@ -108,8 +108,15 @@ as two thumbs. Force them on or off under Einstellungen. Landscape gives you
 noticeably more cave to see; portrait is playable and the game says so once,
 rather than blocking the screen.
 
-The throttle paddle has **two modes**, switched with the GAS button between the
-paddles or under Einstellungen → Schub-Modus:
+The three auxiliary buttons — throttle mode, attitude assist and pause — sit
+behind a **☰ toggle in the top-right corner**. They used to be a column between
+the paddles, which on a landscape phone put two buttons in the middle of the
+playfield with cave behind them. The tray stays open until you close it again,
+so the assist is still holdable in flight, and closing it releases the assist
+rather than leaving it stuck on.
+
+The throttle paddle has **two modes**, switched with the GAS button in the
+tray or under Einstellungen → Schub-Modus:
 
 | Mode | What a press does |
 |---|---|
@@ -427,9 +434,11 @@ A second round, after the touch controls went in:
   happened, on a device that is also being tilted and jostled. A press in the
   right zone is now full power (`PUSH` mode), with the pull-down trim keeping the
   analog control for anyone who wants it, and the old behaviour is one tap away
-  on the GAS button. Portrait had to give up the button column between the
-  paddles for this — a third button pushed the throttle track off the right
-  edge — so in portrait the buttons sit above the paddles instead.
+  on the GAS button.
+- The button column between the paddles was the wrong place for buttons on any
+  phone, and worst in landscape: two of them sat in the middle of the lower
+  screen with cave behind them. They now hide behind a ☰ toggle pinned to the
+  top-right frame edge, which is the one corner the playfield can spare.
 
 Playtesting the autopilot runs also changed three level designs: level 7's
 blowers were producing a 2 g net updraft that pinned you to the ceiling, level

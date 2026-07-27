@@ -330,6 +330,16 @@ async function launchLevelOne(page: Page) {
 }
 
 /**
+ * Open the auxiliary button tray. GAS, LAGE and pause hide behind a toggle in
+ * the top-right corner - on a landscape phone a column of buttons between the
+ * paddles sat right on top of the cave.
+ */
+async function openTray(page: Page) {
+  await page.locator('.touch-menu-btn').click();
+  await expect(page.locator('.touch-tray')).toBeVisible();
+}
+
+/**
  * Press at a point given in 0..1 of an element's box, then drag by a pixel
  * offset. The paddles are relative: what matters is the movement, not where it
  * started.
@@ -434,6 +444,8 @@ test('push mode: pressing the right zone is full power at once', async ({ page }
   const errors = await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
+  await expect(page.locator('.touch-tray')).toBeHidden();
+  await openTray(page);
   await expect(page.locator('.touch-btn-mode')).toContainText('PUSH');
 
   const zone = (await page.locator('.touch-zone-right').boundingBox())!;
@@ -445,7 +457,11 @@ test('push mode: pressing the right zone is full power at once', async ({ page }
   await page.waitForTimeout(60);
   expect((await touchState(page)).throttle).toBe(1);
 
-  await page.waitForTimeout(600);
+  // Wait on *simulated* time, not wall time: under SwiftShader a loaded machine
+  // fits barely a second of simulation into a second of waiting, and the climb
+  // this asserts then lands right on the threshold.
+  const t0 = await simTime(page);
+  await expect.poll(() => simTime(page), { timeout: 20_000 }).toBeGreaterThan(t0 + 1);
   const held = await shipState(page);
   await page.mouse.up();
   expect(held.throttle).toBeGreaterThan(0.9);
@@ -480,6 +496,7 @@ test('the GAS button switches the mode in flight and the choice sticks', async (
   await bootWithoutSave(page);
   await enableTouchControls(page);
   await launchLevelOne(page);
+  await openTray(page);
 
   const modeBtn = page.locator('.touch-btn-mode');
   await modeBtn.click();
@@ -797,4 +814,42 @@ test('the ship never blows the screen out, even with bloom on', async ({ page })
   // Measured ~0.03% after the fix; the pre-fix build sat at ~0.28%, so this
   // bound has room for honest variation and still catches a real regression.
   expect(worst).toBeLessThan(0.0012);
+});
+
+test('the auxiliary buttons keep out of the playfield on a landscape phone', async ({ page }) => {
+  // The complaint that produced the tray: in landscape the GAS / LAGE / pause
+  // column sat in the middle of the lower screen, on top of the cave.
+  await page.setViewportSize({ width: 844, height: 390 });
+  await bootWithoutSave(page);
+  await enableTouchControls(page);
+  await launchLevelOne(page);
+
+  // Closed by default, and nothing of it is over the playfield.
+  await expect(page.locator('.touch-tray')).toBeHidden();
+
+  const toggle = (await page.locator('.touch-menu-btn').boundingBox())!;
+  // Top-right corner: clear of the lower two thirds and hard against the edge.
+  expect(toggle.y + toggle.height).toBeLessThan(390 * 0.25);
+  expect(toggle.x).toBeGreaterThan(844 * 0.85);
+
+  // Open, the tray hangs off that corner rather than sitting mid-screen.
+  await openTray(page);
+  const tray = (await page.locator('.touch-tray').boundingBox())!;
+  expect(tray.x).toBeGreaterThan(844 * 0.8);
+
+  // And the HUD's right-hand cluster does not end up underneath the toggle.
+  const stats = (await page.locator('.hud-right').boundingBox())!;
+  expect(stats.x + stats.width).toBeLessThanOrEqual(toggle.x + 1);
+
+  // Closing it again must not leave the attitude assist stuck on.
+  await page.locator('[data-role="level"]').dispatchEvent('pointerdown');
+  await page.locator('.touch-menu-btn').click();
+  await expect(page.locator('.touch-tray')).toBeHidden();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as never as { game: { touch: { state(): { levelOut: boolean } } } }).game.touch.state()
+          .levelOut,
+    ),
+  ).toBe(false);
 });
