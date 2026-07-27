@@ -787,6 +787,28 @@ body.has-touch-controls .toast {
   color: var(--accent);
 }
 
+/* Throttle-mode switch: a caption plus the mode that is active right now, so
+   nobody has to guess whether the button names the current or the next state. */
+.touch-btn-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15em;
+  line-height: 1.05;
+}
+
+.touch-btn-mode small {
+  font-size: 0.72em;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+}
+
+.touch-btn-mode.is-push {
+  border-color: rgba(125, 227, 168, 0.7);
+  color: #7de3a8;
+}
+
 /* Portrait phones: the sliders need the width more than the labels do. */
 @media (orientation: portrait) and (max-width: 560px) {
   .touch-track {
@@ -798,10 +820,24 @@ body.has-touch-controls .toast {
   .touch-label {
     display: none;
   }
+  /* A portrait phone does not have the width for two tracks *and* a column of
+     buttons between them - with three buttons the throttle track was pushed off
+     the right edge. So the row lifts out of the flex line entirely and sits
+     above the paddles, which leaves each zone half the screen. */
   .touch-mid {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
     flex-direction: row;
-    align-self: center;
-    padding-bottom: clamp(16px, 5vmin, 40px);
+    align-self: flex-start;
+    padding: 0;
+  }
+  /* The mode switch is the one that can afford to be small: it is not pressed
+     while flying. */
+  .touch-btn-mode {
+    min-width: clamp(46px, 11vmin, 70px);
+    font-size: clamp(9px, 1.2vmin, 11px);
   }
 }
 

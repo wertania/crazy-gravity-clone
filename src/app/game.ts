@@ -26,7 +26,7 @@ import { Particles } from '../render/particles';
 import { Backdrop } from '../render/backdrop';
 import { Hud } from '../ui/hud';
 import { Screens } from '../ui/screens';
-import { TouchControls } from '../ui/touch';
+import { THROTTLE_MODES, TouchControls } from '../ui/touch';
 import { Input, type Command } from './input';
 import { FixedLoop } from './loop';
 import { Audio } from '../audio/audio';
@@ -114,6 +114,12 @@ export class Game {
     this.input.onCommand((c) => this.onCommand(c));
     this.touch = new TouchControls(() => this.onCommand('pause'));
     this.input.touch = () => this.touch.state();
+    // Flipping the mode on the overlay has to stick, same as flipping it in
+    // the settings screen.
+    this.touch.onThrottleModeChange = (m) => {
+      this.save = { ...this.save, throttleMode: m };
+      Save.save(this.save);
+    };
     this.screens.setSoundHook((k) => this.audio.ui(k));
 
     // Any gesture is enough to let the browser start audio.
@@ -137,6 +143,7 @@ export class Game {
   private applySettings() {
     this.loop.timeScale = gameSpeedById(this.save.gameSpeed).scale;
     this.audio.setMuted(this.save.muted);
+    this.touch.setThrottleMode(this.save.throttleMode);
   }
 
   private updateRotateHint() {
@@ -246,6 +253,14 @@ export class Game {
         const next = order[(order.indexOf(this.save.touch) + 1) % order.length];
         this.save = { ...this.save, touch: next };
         Save.save(this.save);
+        this.showSettings();
+      },
+      throttleMode: () => {
+        const i = THROTTLE_MODES.indexOf(this.save.throttleMode);
+        const next = THROTTLE_MODES[(i + 1) % THROTTLE_MODES.length];
+        this.save = { ...this.save, throttleMode: next };
+        Save.save(this.save);
+        this.applySettings();
         this.showSettings();
       },
       sound: () => {

@@ -6,7 +6,14 @@
  * - **Steering** (left half of the lower screen). Drag sideways; the further
  *   from where you pressed, the harder the turn. Springs back to zero on
  *   release, so letting go stops the turn rather than leaving the ship spinning.
- * - **Throttle** (right half). Drag upwards for power.
+ * - **Throttle** (right half). Two modes, switchable in the settings and with
+ *   the GAS button between the paddles:
+ *   - `push` (default): pressing anywhere in the zone is **full power**, like
+ *     the thrust key. Pulling *down* from where you pressed trims the power, so
+ *     fine dosing is still there when you want it - it is just no longer the
+ *     price of getting off the ground.
+ *   - `slider`: power comes purely from how far up you drag. Nothing happens
+ *     until you pull.
  *
  * Two deliberate decisions, both from the first version being unpleasant to use:
  *
@@ -31,12 +38,33 @@ export interface TouchState {
   levelOut: boolean;
 }
 
+/**
+ * How the right paddle reads a press.
+ * - `push`: press = full power, pull down to trim.
+ * - `slider`: power is the upward drag distance, nothing else.
+ */
+export type ThrottleMode = 'push' | 'slider';
+
+export const THROTTLE_MODES: readonly ThrottleMode[] = ['push', 'slider'];
+
+/** German labels for the two modes, used on the overlay button and in menus. */
+export const THROTTLE_MODE_LABEL: Record<ThrottleMode, string> = {
+  push: 'Drücken = Vollgas',
+  slider: 'Schieberegler',
+};
+
 /** How fast the steering value springs back to centre, in units per second. */
 const RECENTRE_RATE = 6;
 /** Throttle decay per second once the thumb lifts, so the engine eases off. */
 const THROTTLE_RELEASE_RATE = 5;
 /** Smallest usable drag distance, in case a track renders tiny. */
 const MIN_TRAVEL_PX = 60;
+/**
+ * Slack before a downward pull in `push` mode starts trimming power. Holding a
+ * thumb still on a moving phone is not actually possible, and a press that
+ * means "full power" must not lose a few percent to that wobble.
+ */
+const PUSH_DEADZONE_PX = 14;
 
 interface Paddle {
   zone: HTMLElement;
@@ -53,14 +81,21 @@ export class TouchControls {
   private readonly steer: Paddle;
   private readonly throttlePaddle: Paddle;
   private readonly throttleFill: HTMLElement;
+  private readonly throttleLabel: HTMLElement;
   private readonly levelBtn: HTMLElement;
   private readonly pauseBtn: HTMLElement;
+  private readonly modeBtn: HTMLElement;
+  private readonly modeValue: HTMLElement;
 
   private turn = 0;
   private throttle = 0;
   private levelOut = false;
   private mounted = false;
+  private throttleMode: ThrottleMode = 'push';
   private resizeObserver: ResizeObserver | null = null;
+
+  /** Set by the game so a flip on the overlay button is persisted. */
+  onThrottleModeChange: ((m: ThrottleMode) => void) | null = null;
 
   constructor(
     private readonly onPause: () => void,
@@ -78,6 +113,9 @@ export class TouchControls {
         </div>
       </div>
       <div class="touch-mid">
+        <button class="touch-btn touch-btn-mode" data-role="mode" type="button">
+          <small>GAS</small><span data-role="mode-value">PUSH</span>
+        </button>
         <button class="touch-btn" data-role="level" type="button" aria-label="Lage-Assistent">LAGE</button>
         <button class="touch-btn" data-role="pause" type="button" aria-label="Pause">II</button>
       </div>
@@ -85,7 +123,7 @@ export class TouchControls {
         <div class="touch-throttle" role="slider" aria-label="Schub"
              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="touch-vtrack"><b class="touch-fill"></b><i class="touch-knob"></i></div>
-          <span class="touch-label">▲ HOCHZIEHEN</span>
+          <span class="touch-label" data-role="throttle-label">▲ HOCHZIEHEN</span>
         </div>
       </div>`;
 
@@ -107,15 +145,54 @@ export class TouchControls {
       anchorValue: 0,
     };
     this.throttleFill = pick('.touch-fill');
+    this.throttleLabel = pick('[data-role="throttle-label"]');
     this.levelBtn = pick('[data-role="level"]');
     this.pauseBtn = pick('[data-role="pause"]');
+    this.modeBtn = pick('[data-role="mode"]');
+    this.modeValue = pick('[data-role="mode-value"]');
 
     this.wirePaddle(this.steer, 'x');
     this.wirePaddle(this.throttlePaddle, 'y');
     this.wireButtons();
     doc.body.appendChild(this.root);
     this.observeHeight();
+    this.paintMode();
     this.paint();
+  }
+
+  get mode(): ThrottleMode {
+    return this.throttleMode;
+  }
+
+  /** Adopt a mode without reporting it back - used when loading the save. */
+  setThrottleMode(m: ThrottleMode) {
+    if (m === this.throttleMode) return;
+    this.throttleMode = m;
+    // A mode change mid-hold would otherwise leave a stale anchor value.
+    this.throttlePaddle.pointerId = null;
+    this.throttlePaddle.zone.classList.remove('engaged');
+    this.throttle = 0;
+    this.paintMode();
+    this.paint();
+  }
+
+  private toggleThrottleMode() {
+    this.setThrottleMode(this.throttleMode === 'push' ? 'slider' : 'push');
+    this.onThrottleModeChange?.(this.throttleMode);
+  }
+
+  /** Text that depends on the mode: the button's value and the paddle's hint. */
+  private paintMode() {
+    const push = this.throttleMode === 'push';
+    this.modeValue.textContent = push ? 'PUSH' : 'REGLER';
+    this.modeBtn.setAttribute(
+      'aria-label',
+      `Schub-Modus: ${THROTTLE_MODE_LABEL[this.throttleMode]}. Umschalten auf ` +
+        `${THROTTLE_MODE_LABEL[push ? 'slider' : 'push']}.`,
+    );
+    this.modeBtn.classList.toggle('is-push', push);
+    this.throttleLabel.textContent = push ? 'DRÜCKEN = VOLLGAS' : '▲ HOCHZIEHEN';
+    this.root.classList.toggle('mode-push', push);
   }
 
   /**
@@ -220,7 +297,13 @@ export class TouchControls {
         this.turn = Math.max(-1, Math.min(1, p.anchorValue - delta));
       } else {
         // Screen y grows downwards, so dragging up is a positive delta.
-        const delta = (p.anchor - e.clientY) / travel;
+        let delta = (p.anchor - e.clientY) / travel;
+        if (this.throttleMode === 'push') {
+          // Already at full from the press: only a deliberate downward pull
+          // means anything, and the first few millimetres of it are wobble.
+          const dead = PUSH_DEADZONE_PX / travel;
+          delta = delta > -dead ? 0 : delta + dead;
+        }
         this.throttle = Math.max(0, Math.min(1, p.anchorValue + delta));
       }
       this.paint();
@@ -232,8 +315,11 @@ export class TouchControls {
       p.pointerId = e.pointerId;
       p.anchor = axis === 'x' ? e.clientX : e.clientY;
       // Re-grabbing mid-flight continues from the current value rather than
-      // dumping the engine or snapping the rudder straight.
-      p.anchorValue = axis === 'x' ? this.turn : this.throttle;
+      // dumping the engine or snapping the rudder straight - except in push
+      // mode, where the whole point of a press is that it is full power.
+      if (axis === 'x') p.anchorValue = this.turn;
+      else p.anchorValue = this.throttleMode === 'push' ? 1 : this.throttle;
+      if (axis === 'y') this.throttle = p.anchorValue;
       p.zone.setPointerCapture(e.pointerId);
       p.zone.classList.add('engaged');
       this.paint();
@@ -272,6 +358,13 @@ export class TouchControls {
       e.preventDefault();
       e.stopPropagation();
       this.onPause();
+    });
+    // Reachable without leaving the flight: the mode you want is the one you
+    // find out you want while flying.
+    this.modeBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.toggleThrottleMode();
     });
   }
 

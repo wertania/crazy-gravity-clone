@@ -16,6 +16,7 @@
 import { DIFFICULTIES, GAME_SPEEDS, gameSpeedById, type DifficultyId } from '../sim/config';
 import { LEVELS } from '../sim/levels';
 import type { SaveData } from '../app/save';
+import { THROTTLE_MODE_LABEL } from './touch';
 import type { ScoreBreakdown } from '../sim/world';
 
 export interface MenuItem {
@@ -274,7 +275,13 @@ export class Screens {
 
   settings(
     save: SaveData,
-    actions: { speed: () => void; touch: () => void; sound: () => void; back: () => void },
+    actions: {
+      speed: () => void;
+      touch: () => void;
+      throttleMode: () => void;
+      sound: () => void;
+      back: () => void;
+    },
   ) {
     const speed = gameSpeedById(save.gameSpeed);
     const nextSpeed =
@@ -308,6 +315,19 @@ export class Screens {
         value: touchLabel,
         detail: touchDetail,
         action: actions.touch,
+      },
+      {
+        label: 'Schub-Modus',
+        desc: 'Wie das rechte Paddle einen Druck versteht',
+        value: THROTTLE_MODE_LABEL[save.throttleMode],
+        detail:
+          save.throttleMode === 'push'
+            ? 'Aufdrücken gibt sofort volle Kraft – wie die Schub-Taste. Ziehst du vom ' +
+              'Druckpunkt nach unten, nimmst du Gas weg. Auch direkt im Flug über den ' +
+              'GAS-Knopf umschaltbar.'
+            : 'Kraft kommt nur aus dem Zugweg: aufdrücken tut nichts, hochziehen gibt Gas. ' +
+              'Auch direkt im Flug über den GAS-Knopf umschaltbar.',
+        action: actions.throttleMode,
       },
       {
         label: 'Ton',
@@ -421,8 +441,13 @@ export class Screens {
         Trigger für Schub – der Trigger ist stufenlos. Auf dem Touchscreen bekommst du zwei
         Paddles: die linke Bildschirmhälfte lenkt, die rechte gibt Schub. Du drückst
         irgendwo in der Hälfte auf und ziehst; es zählt, wie weit du ziehst, nicht wo du
-        angefasst hast. Beide sind stufenlos, du kannst das Triebwerk also fein dosieren und
-        schweben – Schweben liegt bei rund einem Drittel des Zugwegs.
+        angefasst hast. Lenken ist stufenlos, du kannst also fein dosieren.
+      </p>
+      <p class="footnote">
+        Der Schub hat zwei Modi, umschaltbar mit dem GAS-Knopf zwischen den Paddles oder in
+        den Einstellungen. <b>PUSH</b> (Standard): einfach aufdrücken gibt volle Kraft, und
+        wer feiner dosieren will, zieht vom Druckpunkt nach unten. <b>REGLER</b>: die Kraft
+        kommt allein aus dem Zugweg, Schweben liegt bei rund einem Drittel davon.
       </p>
     `);
     this.mountMenu(host, [{ label: 'Zurück', action: back }]);

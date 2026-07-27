@@ -12,6 +12,7 @@ import {
   type DifficultyId,
   type GameSpeedId,
 } from '../sim/config';
+import type { ThrottleMode } from '../ui/touch';
 
 const KEY = 'gravity-hauler.save.v1';
 
@@ -30,6 +31,8 @@ export interface SaveData {
   gameSpeed: GameSpeedId;
   /** On-screen flight controls: follow the device, or force them either way. */
   touch: TouchMode;
+  /** How the right paddle reads a press: full power, or drag distance. */
+  throttleMode: ThrottleMode;
   /** Highest level index unlocked, 1-based. */
   unlocked: number;
   totalScore: number;
@@ -43,6 +46,9 @@ const DEFAULT: SaveData = {
   difficulty: DEFAULT_DIFFICULTY,
   gameSpeed: DEFAULT_GAME_SPEED,
   touch: 'auto',
+  // Push beats the slider for a first flight: a press is thrust, exactly like
+  // the key. The slider is one tap away for anyone who wants fine dosing.
+  throttleMode: 'push',
   unlocked: 1,
   totalScore: 0,
   levels: {},
