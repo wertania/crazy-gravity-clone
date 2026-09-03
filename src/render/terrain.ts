@@ -3,13 +3,16 @@
  *
  * The whole cave is four InstancedMeshes (rock, pads, spikes, plus a floor
  * plane), so a 140x82 level costs four draw calls no matter how convoluted it
- * is. Instance colours give the rock a hand-shaded look without a texture.
+ * is. Instance colours shade the rock per tile; on top of that each tile draws
+ * one crop of a shared grain atlas, which gives the stone grain without
+ * costing a second draw call or a second texture bind.
  */
 
 import * as THREE from 'three';
 import { Tile } from '../sim/types';
 import type { Level } from '../sim/level';
 import { WALL_DEPTH } from './scene';
+import { ROCK_ATLAS, ROCK_GRAIN_GAIN, rockGrain } from './textures';
 
 const TMP = new THREE.Object3D();
 const COLOR = new THREE.Color();
@@ -125,9 +128,16 @@ export class Terrain {
 
   private buildRock(level: Level, cells: number[]): THREE.InstancedMesh {
     const geo = this.track(new THREE.BoxGeometry(1, 1, WALL_DEPTH));
+    const grain = rockGrain();
     const mat = this.track(
       new THREE.MeshStandardMaterial({
-        color: 0xffffff,
+        // Above white on purpose when there is a grain map: it cancels the
+        // map's baked-in 0.72 average so the texture only adds grain and does
+        // not quietly darken the palette by a third. Linear-light values over
+        // 1 are fine here - the map and the instance colour bring them back
+        // under before tone mapping ever sees them.
+        color: grain ? new THREE.Color().setScalar(ROCK_GRAIN_GAIN) : new THREE.Color(0xffffff),
+        map: grain,
         roughness: 0.92,
         metalness: 0.06,
         vertexColors: false,
@@ -135,6 +145,11 @@ export class Terrain {
     );
     const mesh = new THREE.InstancedMesh(geo, mat, cells.length);
     mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+    // Which crop of the grain atlas each tile samples. The texture's own UV
+    // transform is already scaled to one cell, so all the shader has to do is
+    // slide the result over to the chosen cell.
+    const tileUv = grain ? new Float32Array(cells.length * 2) : null;
 
     for (let n = 0; n < cells.length; n++) {
       const i = cells[n];
@@ -159,9 +174,35 @@ export class Terrain {
       const base = exposed ? 0.3 : 0.16;
       COLOR.setHSL(0.58 + r * 0.045, 0.26 + r * 0.1, base + r * 0.09);
       mesh.setColorAt(n, COLOR);
+
+      if (tileUv) {
+        // Its own hash, so a tile's crop is uncorrelated with its brightness -
+        // sharing `r` would tie every dark tile to the same patch of stone.
+        const cell = Math.min(
+          ROCK_ATLAS * ROCK_ATLAS - 1,
+          (hash2(x, y, level.spec.seed + 101) * ROCK_ATLAS * ROCK_ATLAS) | 0,
+        );
+        tileUv[n * 2] = (cell % ROCK_ATLAS) / ROCK_ATLAS;
+        tileUv[n * 2 + 1] = ((cell / ROCK_ATLAS) | 0) / ROCK_ATLAS;
+      }
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+    if (tileUv) {
+      geo.setAttribute('aTileUv', new THREE.InstancedBufferAttribute(tileUv, 2));
+      // Two lines of shader, and the alternative is 16 materials and 16 draw
+      // calls. `uv_vertex` is where three builds `vMapUv` from the texture's
+      // transform, so appending the cell offset there needs no other changes.
+      mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader
+          .replace('#include <common>', '#include <common>\nattribute vec2 aTileUv;')
+          .replace('#include <uv_vertex>', '#include <uv_vertex>\n\tvMapUv += aTileUv;');
+      };
+      // Without this the patched program would be handed out for any other
+      // MeshStandardMaterial that happens to compile to the same key.
+      mat.customProgramCacheKey = () => 'rock-atlas';
+    }
     return mesh;
   }
 

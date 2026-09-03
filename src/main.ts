@@ -1,5 +1,6 @@
 import './style.css';
 import { Game } from './app/game';
+import { preloadTextures } from './render/textures';
 
 /** Set up by the inline boot script in index.html; absent only in odd embeds. */
 declare global {
@@ -28,9 +29,7 @@ function fatal(message: string) {
   overlay.innerHTML = `<div class="panel"><h2>Start nicht möglich</h2><p>${message}</p></div>`;
 }
 
-if (!canvas) {
-  fatal('Die Zeichenfläche fehlt auf dieser Seite.');
-} else {
+function start(canvas: HTMLCanvasElement) {
   try {
     const game = new Game(canvas, {
       onRendererReady: () => boot?.phase(80, 'Shader werden übersetzt …'),
@@ -47,4 +46,16 @@ if (!canvas) {
       'WebGL konnte nicht gestartet werden. Gravity Pilot benötigt einen Browser mit hardwarebeschleunigtem WebGL 2.',
     );
   }
+}
+
+if (!canvas) {
+  fatal('Die Zeichenfläche fehlt auf dieser Seite.');
+} else {
+  boot?.phase(66, 'Gestein wird texturiert …');
+  // The rock and nebula textures have to be decoded before the first level is
+  // built, because that is when the renderers pick them up. Two bundled files
+  // under 100 kB total, behind a boot screen that is already on top - and the
+  // promise never rejects, so a texture that fails to load costs the flat
+  // shading it replaces and nothing else.
+  preloadTextures().then(() => start(canvas));
 }
