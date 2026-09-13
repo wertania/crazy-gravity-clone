@@ -224,6 +224,8 @@ src/
     actors.ts     ship and props
     particles.ts  one pooled additive point cloud
     backdrop.ts   parallax layers
+    textures.ts   the two bitmaps, loaded before the first level
+    textures/     rock grain and nebula, ~100 kB together
   ui/           DOM overlay (German)
     hud.ts, screens.ts, touch.ts
   audio/        procedural WebAudio, no sample files
@@ -290,6 +292,35 @@ ship's lamp.
 Quality steps itself down automatically after a sustained slow patch: first
 bloom, then the buffer resolution. On software rendering the game stays
 playable, it just stops glowing.
+
+#### The two bitmaps
+
+Almost everything on screen is generated at runtime, but two things are images,
+because noise is what a reasonable amount of code does not fake convincingly:
+hand-written value noise reads as static rather than as stone, and a coded
+nebula reads as a blurry blob. Together they are under 100 kB, they are imported
+through Vite so they land in `dist/assets/` under a content hash and inherit the
+year-long immutable cache, and neither is required — if a load fails, both
+renderers fall back to the flat shading they replace.
+
+- **`rock-grain.webp`** is a *multiplier*, not an albedo. The rock's colour
+  still comes from the per-instance colours; the map only carves grain and
+  cracks into it. Since the rock is a single InstancedMesh, every tile shares
+  one geometry and one set of UVs, so the texture is treated as a 4×4 grid of
+  independent crops and each tile picks one from a hash — 16 distinct rock faces
+  out of one image, still one draw call, via two lines of patched shader. An
+  8-bit map cannot average to 1.0 without clipping its highlights, so it is
+  baked to an average of 0.72 in linear light and the material multiplies the
+  reciprocal back out; get that wrong and the whole cave changes brightness.
+- **`nebula.webp`** is one unlit quad behind the dust layers, seamless on both
+  axes and repeating at a fixed scale in tiles so a wide cave does not stretch
+  it. It is what stops the void reading as a flat black fill. Unlit levels dim
+  it to a tenth: the backdrop would otherwise be the brightest thing on screen
+  and hand the player exactly the orientation the level is built to withhold.
+
+Both were generated from text prompts and then processed into game textures;
+`tools/bake-textures.py` holds the prompts and does the processing, so they can
+be regenerated or re-tuned rather than being opaque binaries.
 
 ---
 

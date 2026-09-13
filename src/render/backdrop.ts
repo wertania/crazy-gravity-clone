@@ -8,6 +8,13 @@
  */
 
 import * as THREE from 'three';
+import { NEBULA_SPAN_X, NEBULA_SPAN_Y, nebulaField } from './textures';
+
+/**
+ * Depth of the nebula sheet. Far enough behind the dust layers to sit clearly
+ * underneath them, well inside the camera's 240-unit far plane.
+ */
+const NEBULA_Z = -58;
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -41,10 +48,12 @@ export class Backdrop {
   private readonly disposables: { dispose(): void }[] = [];
   private readonly drifters: THREE.Points[] = [];
 
-  constructor(seed: number, spanX: number, spanY: number) {
+  constructor(seed: number, spanX: number, spanY: number, dark = 0) {
     const rnd = mulberry32(seed);
     const tex = haze();
     this.disposables.push(tex);
+
+    this.buildNebula(spanX, spanY, dark);
 
     // Three dust layers at increasing depth.
     const layers = [
@@ -104,6 +113,53 @@ export class Backdrop {
       this.disposables.push(mat);
       this.group.add(s);
     }
+  }
+
+  /**
+   * A single sheet of nebula behind the dust.
+   *
+   * One quad, no lighting, drawn first: it costs a draw call and 15 kB and it
+   * is what stops the void reading as a flat black fill. The sheet is sized
+   * well past the level so the 0.28 of camera motion that the parallax group
+   * does *not* absorb can never drag its edge into view, and the texture
+   * repeats at a fixed scale in tiles so a wide cave does not stretch it.
+   */
+  private buildNebula(spanX: number, spanY: number, dark: number) {
+    const map = nebulaField();
+    if (!map) return;
+
+    const w = Math.max(spanX * 2.4, 320);
+    const h = Math.max(spanY * 2.4, 240);
+
+    // Cloned so the repeat below belongs to this level and not to every level
+    // that shares the cached texture.
+    const tex = this.track(map.clone());
+    tex.needsUpdate = true;
+    tex.repeat.set(w / NEBULA_SPAN_X, h / NEBULA_SPAN_Y);
+
+    const geo = this.track(new THREE.PlaneGeometry(w, h, 1, 1));
+    const mat = this.track(
+      new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        // Unlit levels dim the cave to the ship's lamp and nothing else, so an
+        // unlit backdrop would be the brightest thing on screen and hand the
+        // player exactly the orientation the level is built to withhold.
+        opacity: dark > 0 ? 0.1 : 0.85,
+        depthWrite: false,
+        fog: false,
+      }),
+    );
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(spanX / 2, spanY / 2, NEBULA_Z);
+    mesh.renderOrder = -1;
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+  }
+
+  private track<T extends { dispose(): void }>(x: T): T {
+    this.disposables.push(x);
+    return x;
   }
 
   update(dt: number) {

@@ -176,7 +176,7 @@ export class Game {
 
     this.terrain = new Terrain(level);
     this.props = new Props(this.world);
-    this.backdrop = new Backdrop(spec.seed, level.width, level.height);
+    this.backdrop = new Backdrop(spec.seed, level.width, level.height, level.dark);
 
     this.stage.world.add(this.terrain.group, this.props.group);
     this.stage.farField.add(this.backdrop.group);
